@@ -404,6 +404,19 @@ def edit_page_image(project_id, page_id):
         # Get current image path
         current_image_path = file_service.get_absolute_path(page.generated_image_path)
         
+        # Get original description if available
+        original_description = None
+        desc_content = page.get_description_content()
+        if desc_content:
+            # Extract text from description_content
+            original_description = desc_content.get('text') or ''
+            # If text is not available, try to construct from text_content
+            if not original_description and desc_content.get('text_content'):
+                if isinstance(desc_content['text_content'], list):
+                    original_description = '\n'.join(desc_content['text_content'])
+                else:
+                    original_description = str(desc_content['text_content'])
+        
         # Edit image
         page.status = 'GENERATING'
         db.session.commit()
@@ -412,7 +425,8 @@ def edit_page_image(project_id, page_id):
             data['edit_instruction'],
             current_image_path,
             current_app.config['DEFAULT_ASPECT_RATIO'],
-            current_app.config['DEFAULT_RESOLUTION']
+            current_app.config['DEFAULT_RESOLUTION'],
+            original_description=original_description
         )
         
         if not image:

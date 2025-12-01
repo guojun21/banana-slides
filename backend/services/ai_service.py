@@ -271,7 +271,8 @@ class AIService:
             raise Exception(error_detail) from e
     
     def edit_image(self, prompt: str, current_image_path: str,
-                  aspect_ratio: str = "16:9", resolution: str = "2K") -> Optional[Image.Image]:
+                  aspect_ratio: str = "16:9", resolution: str = "2K",
+                  original_description: str = None) -> Optional[Image.Image]:
         """
         Edit existing image with natural language instruction
         Uses current image as reference
@@ -281,10 +282,22 @@ class AIService:
             current_image_path: Path to current page image
             aspect_ratio: Image aspect ratio
             resolution: Image resolution
+            original_description: Original page description to include in prompt
         
         Returns:
             PIL Image object or None if failed
         """
-        edit_instruction = f"根据以下指令修改这张PPT页面：{prompt}\n保持原有的内容结构和设计风格，只按照指令进行修改。"
+        # Build edit instruction with original description if available
+        if original_description:
+            edit_instruction = dedent(f"""\
+            该PPT页面的原始页面描述为：
+            {original_description}
+            
+            现在，根据以下指令修改这张PPT页面：{prompt}
+            
+            要求维持原有的文字内容和设计风格，只按照指令进行修改。
+            """)
+        else:
+            edit_instruction = f"根据以下指令修改这张PPT页面：{prompt}\n保持原有的内容结构和设计风格，只按照指令进行修改。"
         return self.generate_image(edit_instruction, current_image_path, aspect_ratio, resolution)
 
