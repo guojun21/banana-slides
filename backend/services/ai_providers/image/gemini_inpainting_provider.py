@@ -174,23 +174,38 @@ class GeminiInpaintingProvider:
             # Mask 转换为 RGB（Gemini 需要）
             if mask_image.mode != 'RGB':
                 # 转换灰度图为RGB
-                mask_rgb = Image.new('RGB', mask_image.size)
                 if mask_image.mode == 'L':
-                    mask_rgb = Image.merge('RGB', (mask_image, mask_image, mask_image))
+                    mask_image = Image.merge('RGB', (mask_image, mask_image, mask_image))
                 else:
-                    mask_rgb = mask_image.convert('RGB')
-                mask_image = mask_rgb
+                    mask_image = mask_image.convert('RGB')
             
-            # 2. 如果使用完整页面图像，不扩展；否则扩展到 16:9
+            # 2. 如果使用完整页面图像，需要扩展 mask 到完整页面大小
+            result_crop_box = crop_box  # 保存传入的 crop_box
+            
             if use_full_page:
-                # 直接使用完整页面图像，不扩展
+                # 直接使用完整页面图像
                 final_image = working_image
-                final_mask = mask_image
-                logger.info(f"📷 图像尺寸: {final_image.size} (完整页面)")
+                
+                # 扩展 mask 到完整页面大小
+                if crop_box:
+                    # 创建与完整页面同样大小的黑色 mask
+                    full_mask = Image.new('RGB', final_image.size, (0, 0, 0))
+                    # 将原 mask 粘贴到正确的位置
+                    x0, y0, x1, y1 = crop_box
+                    # 确保 mask 尺寸匹配
+                    mask_resized = mask_image.resize((x1 - x0, y1 - y0), Image.LANCZOS)
+                    full_mask.paste(mask_resized, (x0, y0))
+                    final_mask = full_mask
+                    logger.info(f"📷 完整页面模式: 页面={final_image.size}, mask扩展到={final_mask.size}, 粘贴位置={crop_box}")
+                else:
+                    # 没有 crop_box，假设 mask 已经是正确大小
+                    final_mask = mask_image
+                    logger.warning(f"⚠️ 完整页面模式但没有 crop_box，直接使用 mask: {final_mask.size}")
             else:
                 # 扩展到 16:9 比例（Gemini 要求）
-                final_image, crop_box = self._expand_to_16_9(working_image, fill_color=(255, 255, 255))
+                final_image, expand_crop_box = self._expand_to_16_9(working_image, fill_color=(255, 255, 255))
                 final_mask, _ = self._expand_to_16_9(mask_image, fill_color=(0, 0, 0))  # mask用黑色填充
+                result_crop_box = expand_crop_box  # 使用扩展后的 crop_box
                 logger.info(f"📷 图像尺寸: 原图={original_size}, 扩展后={final_image.size}")
             
             # 3. 构建 prompt
@@ -245,8 +260,8 @@ class GeminiInpaintingProvider:
                         # 根据是否使用完整页面决定是否裁剪
                         if use_full_page:
                             # 使用完整页面，需要裁剪出 original_image 对应的区域
-                            if crop_box:
-                                cropped_result = result_image.crop(crop_box)
+                            if result_crop_box:
+                                cropped_result = result_image.crop(result_crop_box)
                                 logger.info(f"✂️  从完整页面裁剪: {result_image.size} -> {cropped_result.size}")
                                 return cropped_result
                             else:
@@ -255,7 +270,7 @@ class GeminiInpaintingProvider:
                                 return result_image
                         else:
                             # 扩展模式，裁剪回原始尺寸
-                            cropped_result = result_image.crop(crop_box)
+                            cropped_result = result_image.crop(result_crop_box)
                             logger.info(f"✂️  裁剪回原始尺寸: {cropped_result.size}")
                             return cropped_result
                     except Exception as e:
