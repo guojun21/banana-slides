@@ -65,18 +65,18 @@ class InpaintingService:
                 self.provider_type = "gemini"
             else:
                 # 使用火山引擎 Inpainting Provider（默认）
-                access_key = config.VOLCENGINE_ACCESS_KEY
-                secret_key = config.VOLCENGINE_SECRET_KEY
-                timeout = config.VOLCENGINE_INPAINTING_TIMEOUT
-                
-                if not access_key or not secret_key:
-                    raise ValueError("火山引擎 Access Key 和 Secret Key 未配置")
-                
-                self.provider = VolcengineInpaintingProvider(
-                    access_key=access_key,
-                    secret_key=secret_key,
-                    timeout=timeout
-                )
+            access_key = config.VOLCENGINE_ACCESS_KEY
+            secret_key = config.VOLCENGINE_SECRET_KEY
+            timeout = config.VOLCENGINE_INPAINTING_TIMEOUT
+            
+            if not access_key or not secret_key:
+                raise ValueError("火山引擎 Access Key 和 Secret Key 未配置")
+            
+            self.provider = VolcengineInpaintingProvider(
+                access_key=access_key,
+                secret_key=secret_key,
+                timeout=timeout
+            )
                 self.provider_type = "volcengine"
         else:
             self.provider = provider
