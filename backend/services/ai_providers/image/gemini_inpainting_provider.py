@@ -172,47 +172,62 @@ class GeminiInpaintingProvider:
             # 4. 构建请求内容
             # 根据 Gemini 文档，image editing 需要同时提供原图和 mask
             contents = [
-                expanded_original,
-                expanded_mask,
-                prompt
+                types.Content(
+                    role="user",
+                    parts=[
+                        types.Part.from_image(expanded_original),
+                        types.Part.from_image(expanded_mask),
+                        types.Part.from_text(text=prompt),
+                    ],
+                ),
             ]
             
-            logger.info("🌐 发送请求到 Gemini API...")
+            logger.info("🌐 发送请求到 Gemini API (stream)...")
             
-            # 5. 调用 Gemini API
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    response_modalities=['IMAGE'],  # 只需要图像输出
-                    image_config=types.ImageConfig(
-                        aspect_ratio="16:9",  # 使用16:9比例
-                        image_size="ORIGINAL"  # 保持原始尺寸
-                    ),
-                )
+            # 5. 调用 Gemini API (使用 stream)
+            generate_content_config = types.GenerateContentConfig(
+                response_modalities=['IMAGE', 'TEXT'],
+                image_config=types.ImageConfig(
+                    aspect_ratio="16:9",  # 使用16:9比例
+                ),
             )
             
-            logger.debug("Gemini API 调用完成")
-            
             # 6. 提取生成的图像并裁剪回原始尺寸
-            for i, part in enumerate(response.parts):
-                if part.text is not None:
-                    logger.debug(f"Part {i}: TEXT - {part.text[:100]}")
-                else:
+            from io import BytesIO
+            
+            for chunk in self.client.models.generate_content_stream(
+                model=self.model,
+                contents=contents,
+                config=generate_content_config,
+            ):
+                # 检查是否有有效的候选响应
+                if (
+                    chunk.candidates is None
+                    or chunk.candidates[0].content is None
+                    or chunk.candidates[0].content.parts is None
+                ):
+                    continue
+                
+                # 检查是否有图像数据
+                part = chunk.candidates[0].content.parts[0]
+                if part.inline_data and part.inline_data.data:
+                    logger.debug("✅ 找到图像数据")
                     try:
-                        logger.debug(f"Part {i}: 尝试提取图像...")
-                        result_image = Image.open(part.inline_data.to_bytes_io())
+                        # 从 inline_data.data 读取图像
+                        image_data = part.inline_data.data
+                        result_image = Image.open(BytesIO(image_data))
                         logger.info(f"✅ Gemini Inpainting 成功！扩展图尺寸: {result_image.size}, {result_image.mode}")
                         
                         # 裁剪回原始尺寸
-                        x0, y0, x1, y1 = crop_box
                         cropped_result = result_image.crop(crop_box)
                         logger.info(f"✂️  裁剪回原始尺寸: {cropped_result.size}")
                         
                         return cropped_result
                     except Exception as e:
-                        logger.debug(f"Part {i}: 不是有效图像 - {e}")
+                        logger.error(f"解析图像数据失败: {e}")
                         continue
+                elif chunk.text:
+                    logger.debug(f"收到文本: {chunk.text[:100]}")
             
             logger.error("❌ 响应中未找到图像")
             return None
