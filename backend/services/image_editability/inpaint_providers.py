@@ -4,11 +4,14 @@ Inpaint提供者 - 抽象不同的inpaint实现
 提供两种重绘方法：
 1. DefaultInpaintProvider - 基于mask的精确区域重绘（使用Volcengine Inpainting服务）
 2. GenerativeEditInpaintProvider - 基于生成式大模型的整图编辑重绘（如Gemini图片编辑）
+
+以及注册表：
+- InpaintProviderRegistry - 元素类型到重绘方法的映射注册表
 """
 import logging
 import tempfile
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional, Dict
 from PIL import Image
 
 logger = logging.getLogger(__name__)
@@ -200,4 +203,159 @@ class GenerativeEditInpaintProvider(InpaintProvider):
             logger.error(f"GenerativeEditInpaintProvider处理失败: {e}", exc_info=True)
             return None
 
+
+class InpaintProviderRegistry:
+    """
+    元素类型到重绘方法的映射注册表
+    
+    根据元素类型选择合适的重绘方法：
+    - 文本元素 → DefaultInpaintProvider（mask-based精确移除）
+    - 表格元素 → DefaultInpaintProvider（保持表格框架）
+    - 图片/图表元素 → GenerativeEditInpaintProvider（整图重绘）
+    - 其他类型 → 默认提供者
+    
+    使用方式：
+        >>> registry = InpaintProviderRegistry()
+        >>> registry.register('text', mask_provider)
+        >>> registry.register('image', generative_provider)
+        >>> registry.register_default(mask_provider)
+        >>> 
+        >>> provider = registry.get_provider('text')  # 返回 mask_provider
+        >>> provider = registry.get_provider('chart')  # 返回 generative_provider
+    """
+    
+    # 预定义的元素类型分组
+    TEXT_TYPES = {'text', 'title', 'paragraph'}
+    TABLE_TYPES = {'table', 'table_cell'}
+    IMAGE_TYPES = {'image', 'figure', 'chart', 'diagram'}
+    
+    def __init__(self):
+        """初始化注册表"""
+        self._type_mapping: Dict[str, InpaintProvider] = {}
+        self._default_provider: Optional[InpaintProvider] = None
+    
+    def register(self, element_type: str, provider: InpaintProvider) -> 'InpaintProviderRegistry':
+        """
+        注册元素类型到重绘方法的映射
+        
+        Args:
+            element_type: 元素类型（如 'text', 'image' 等）
+            provider: 对应的重绘提供者实例
+        
+        Returns:
+            self，支持链式调用
+        """
+        self._type_mapping[element_type] = provider
+        logger.debug(f"注册重绘提供者: {element_type} -> {provider.__class__.__name__}")
+        return self
+    
+    def register_types(self, element_types: List[str], provider: InpaintProvider) -> 'InpaintProviderRegistry':
+        """
+        批量注册多个元素类型到同一个重绘方法
+        
+        Args:
+            element_types: 元素类型列表
+            provider: 对应的重绘提供者实例
+        
+        Returns:
+            self，支持链式调用
+        """
+        for t in element_types:
+            self.register(t, provider)
+        return self
+    
+    def register_default(self, provider: InpaintProvider) -> 'InpaintProviderRegistry':
+        """
+        注册默认重绘方法（当没有特定类型映射时使用）
+        
+        Args:
+            provider: 默认重绘提供者实例
+        
+        Returns:
+            self，支持链式调用
+        """
+        self._default_provider = provider
+        logger.debug(f"注册默认重绘提供者: {provider.__class__.__name__}")
+        return self
+    
+    def get_provider(self, element_type: Optional[str]) -> Optional[InpaintProvider]:
+        """
+        根据元素类型获取对应的重绘方法
+        
+        Args:
+            element_type: 元素类型，None表示使用默认提供者
+        
+        Returns:
+            对应的重绘提供者，如果没有注册则返回默认提供者
+        """
+        if element_type is None:
+            return self._default_provider
+        
+        # 先查找精确匹配
+        if element_type in self._type_mapping:
+            return self._type_mapping[element_type]
+        
+        # 返回默认提供者
+        return self._default_provider
+    
+    def get_all_providers(self) -> List[InpaintProvider]:
+        """
+        获取所有已注册的重绘提供者（去重）
+        
+        Returns:
+            重绘提供者列表
+        """
+        providers = list(set(self._type_mapping.values()))
+        if self._default_provider and self._default_provider not in providers:
+            providers.append(self._default_provider)
+        return providers
+    
+    @classmethod
+    def create_default(
+        cls,
+        mask_provider: Optional[InpaintProvider] = None,
+        generative_provider: Optional[InpaintProvider] = None
+    ) -> 'InpaintProviderRegistry':
+        """
+        创建默认配置的注册表
+        
+        默认配置：
+        - 文本类型 → mask-based（精确移除文字区域）
+        - 表格类型 → mask-based（保持表格框架，只移除单元格内容）
+        - 图片/图表类型 → generative（整图重绘，处理复杂图形）
+        - 其他类型 → mask-based（默认）
+        
+        Args:
+            mask_provider: 基于mask的重绘提供者（DefaultInpaintProvider）
+            generative_provider: 生成式重绘提供者（GenerativeEditInpaintProvider）
+        
+        Returns:
+            配置好的注册表实例
+        """
+        registry = cls()
+        
+        # 如果没有提供任何provider，返回空注册表
+        if not mask_provider and not generative_provider:
+            logger.warning("创建InpaintProviderRegistry时未提供任何provider")
+            return registry
+        
+        # 设置默认提供者（优先使用mask_provider）
+        default_provider = mask_provider or generative_provider
+        registry.register_default(default_provider)
+        
+        # 文本类型使用mask-based
+        if mask_provider:
+            registry.register_types(list(cls.TEXT_TYPES), mask_provider)
+            registry.register_types(list(cls.TABLE_TYPES), mask_provider)
+        
+        # 图片类型使用generative（如果可用），否则使用mask-based
+        image_provider = generative_provider or mask_provider
+        if image_provider:
+            registry.register_types(list(cls.IMAGE_TYPES), image_provider)
+        
+        logger.info(f"创建默认InpaintProviderRegistry: "
+                   f"文本/表格->{mask_provider.__class__.__name__ if mask_provider else 'None'}, "
+                   f"图片->{image_provider.__class__.__name__ if image_provider else 'None'}")
+        
+        return registry
 

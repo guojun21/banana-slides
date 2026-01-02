@@ -46,14 +46,16 @@ from .coordinate_mapper import CoordinateMapper
 from .extractors import (
     ElementExtractor,
     MinerUElementExtractor,
-    BaiduOCRElementExtractor
+    BaiduOCRElementExtractor,
+    ExtractorRegistry
 )
 
 # Inpaint提供者
 from .inpaint_providers import (
     InpaintProvider,
     DefaultInpaintProvider,
-    GenerativeEditInpaintProvider
+    GenerativeEditInpaintProvider,
+    InpaintProviderRegistry
 )
 
 # 工厂和配置
@@ -77,10 +79,12 @@ __all__ = [
     'ElementExtractor',
     'MinerUElementExtractor',
     'BaiduOCRElementExtractor',
+    'ExtractorRegistry',
     # Inpaint提供者
     'InpaintProvider',
     'DefaultInpaintProvider',
     'GenerativeEditInpaintProvider',
+    'InpaintProviderRegistry',
     # 工厂和配置
     'ExtractorFactory',
     'InpaintProviderFactory',

@@ -1,5 +1,11 @@
 """
 元素提取器 - 抽象不同的元素识别方法
+
+包含：
+- ElementExtractor: 提取器抽象接口
+- MinerUElementExtractor: MinerU版面分析提取器
+- BaiduOCRElementExtractor: 百度表格OCR提取器
+- ExtractorRegistry: 元素类型到提取器的映射注册表
 """
 import os
 import json
@@ -7,7 +13,7 @@ import logging
 import tempfile
 import uuid
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Type
 from pathlib import Path
 from PIL import Image
 
@@ -521,4 +527,149 @@ class BaiduOCRElementExtractor(ElementExtractor):
             logger.warning(f"{'  ' * depth}达到最大迭代次数，当前最小间距={current_min_gap:.1f}px")
         
         return [data['current_bbox'] for data in cell_data]
+
+
+class ExtractorRegistry:
+    """
+    元素类型到提取器的映射注册表
+    
+    用于管理不同元素类型应该使用哪个提取器进行子元素提取：
+    - 图片/图表元素 → MinerU 版面分析
+    - 表格元素 → 百度表格OCR
+    - 其他类型 → 默认提取器
+    
+    使用方式：
+        >>> registry = ExtractorRegistry()
+        >>> registry.register('table', baidu_ocr_extractor)
+        >>> registry.register('image', mineru_extractor)
+        >>> registry.register_default(mineru_extractor)
+        >>> 
+        >>> extractor = registry.get_extractor('table')  # 返回 baidu_ocr_extractor
+        >>> extractor = registry.get_extractor('chart')  # 返回 mineru_extractor (默认)
+    """
+    
+    # 预定义的元素类型分组
+    TABLE_TYPES = {'table', 'table_cell'}
+    IMAGE_TYPES = {'image', 'figure', 'chart', 'diagram'}
+    TEXT_TYPES = {'text', 'title', 'paragraph'}
+    
+    def __init__(self):
+        """初始化注册表"""
+        self._type_mapping: Dict[str, ElementExtractor] = {}
+        self._default_extractor: Optional[ElementExtractor] = None
+    
+    def register(self, element_type: str, extractor: ElementExtractor) -> 'ExtractorRegistry':
+        """
+        注册元素类型到提取器的映射
+        
+        Args:
+            element_type: 元素类型（如 'table', 'image' 等）
+            extractor: 对应的提取器实例
+        
+        Returns:
+            self，支持链式调用
+        """
+        self._type_mapping[element_type] = extractor
+        logger.debug(f"注册提取器: {element_type} -> {extractor.__class__.__name__}")
+        return self
+    
+    def register_types(self, element_types: List[str], extractor: ElementExtractor) -> 'ExtractorRegistry':
+        """
+        批量注册多个元素类型到同一个提取器
+        
+        Args:
+            element_types: 元素类型列表
+            extractor: 对应的提取器实例
+        
+        Returns:
+            self，支持链式调用
+        """
+        for t in element_types:
+            self.register(t, extractor)
+        return self
+    
+    def register_default(self, extractor: ElementExtractor) -> 'ExtractorRegistry':
+        """
+        注册默认提取器（当没有特定类型映射时使用）
+        
+        Args:
+            extractor: 默认提取器实例
+        
+        Returns:
+            self，支持链式调用
+        """
+        self._default_extractor = extractor
+        logger.debug(f"注册默认提取器: {extractor.__class__.__name__}")
+        return self
+    
+    def get_extractor(self, element_type: Optional[str]) -> Optional[ElementExtractor]:
+        """
+        根据元素类型获取对应的提取器
+        
+        Args:
+            element_type: 元素类型，None表示使用默认提取器
+        
+        Returns:
+            对应的提取器，如果没有注册则返回默认提取器
+        """
+        if element_type is None:
+            return self._default_extractor
+        
+        # 先查找精确匹配
+        if element_type in self._type_mapping:
+            return self._type_mapping[element_type]
+        
+        # 返回默认提取器
+        return self._default_extractor
+    
+    def get_all_extractors(self) -> List[ElementExtractor]:
+        """
+        获取所有已注册的提取器（去重）
+        
+        Returns:
+            提取器列表
+        """
+        extractors = list(set(self._type_mapping.values()))
+        if self._default_extractor and self._default_extractor not in extractors:
+            extractors.append(self._default_extractor)
+        return extractors
+    
+    @classmethod
+    def create_default(
+        cls,
+        mineru_extractor: ElementExtractor,
+        baidu_ocr_extractor: Optional[ElementExtractor] = None
+    ) -> 'ExtractorRegistry':
+        """
+        创建默认配置的注册表
+        
+        默认配置：
+        - 表格类型 → 百度OCR（如果可用）
+        - 图片类型 → MinerU
+        - 其他类型 → MinerU（默认）
+        
+        Args:
+            mineru_extractor: MinerU提取器实例
+            baidu_ocr_extractor: 百度OCR提取器实例（可选）
+        
+        Returns:
+            配置好的注册表实例
+        """
+        registry = cls()
+        
+        # 设置默认提取器
+        registry.register_default(mineru_extractor)
+        
+        # 图片类型使用MinerU
+        registry.register_types(list(cls.IMAGE_TYPES), mineru_extractor)
+        
+        # 表格类型使用百度OCR（如果可用），否则使用MinerU
+        table_extractor = baidu_ocr_extractor if baidu_ocr_extractor else mineru_extractor
+        registry.register_types(list(cls.TABLE_TYPES), table_extractor)
+        
+        logger.info(f"创建默认ExtractorRegistry: "
+                   f"表格->{table_extractor.__class__.__name__}, "
+                   f"图片->{mineru_extractor.__class__.__name__}")
+        
+        return registry
 

@@ -53,15 +53,18 @@ class ImageEditabilityService:
         """
         # 只读配置，线程安全
         self._upload_folder = config.upload_folder
-        self._extractors = config.extractors
-        self._inpaint_provider = config.inpaint_provider
+        self._extractor_registry = config.extractor_registry
+        self._inpaint_registry = config.inpaint_registry
         self._max_depth = config.max_depth
         self._min_image_size = config.min_image_size
         self._min_image_area = config.min_image_area
         self._max_child_coverage_ratio = 0.85
         
+        extractors = self._extractor_registry.get_all_extractors()
+        inpaint_providers = self._inpaint_registry.get_all_providers()
         logger.info(
-            f"ImageEditabilityService: {len(self._extractors)} extractors, "
+            f"ImageEditabilityService: {len(extractors)} extractors, "
+            f"{len(inpaint_providers)} inpaint providers, "
             f"max_depth={self._max_depth}"
         )
     
@@ -133,9 +136,9 @@ class ImageEditabilityService:
         
         logger.info(f"{'  ' * depth}提取到 {len(elements)} 个元素")
         
-        # 3. 生成clean background
+        # 3. 生成clean background（根据元素类型选择重绘方法）
         clean_background = None
-        if self._inpaint_provider and elements:
+        if self._inpaint_registry and elements:
             clean_background = self._generate_clean_background(
                 image_path=image_path,
                 elements=elements,
@@ -143,7 +146,8 @@ class ImageEditabilityService:
                 depth=depth,
                 parent_bbox=parent_bbox,
                 root_image_path=root_image_path,
-                image_size=(width, height)
+                image_size=(width, height),
+                element_type=element_type  # 传递元素类型以选择对应的重绘方法
             )
         
         # 4. 递归处理子元素
@@ -193,13 +197,11 @@ class ImageEditabilityService:
         )
     
     def _select_extractor(self, element_type: Optional[str]) -> ElementExtractor:
-        """选择合适的提取器"""
-        for extractor in self._extractors:
-            if extractor.supports_type(element_type):
-                return extractor
-        
-        # 默认使用最后一个
-        return self._extractors[-1]
+        """根据元素类型从注册表选择对应的提取器"""
+        extractor = self._extractor_registry.get_extractor(element_type)
+        if extractor is None:
+            raise ValueError(f"未找到元素类型 '{element_type}' 对应的提取器")
+        return extractor
     
     def _convert_to_editable_elements(
         self,
@@ -254,10 +256,23 @@ class ImageEditabilityService:
         depth: int,
         parent_bbox: Optional[BBox],
         root_image_path: str,
-        image_size: Tuple[int, int]
+        image_size: Tuple[int, int],
+        element_type: Optional[str] = None
     ) -> Optional[str]:
-        """生成clean background"""
-        logger.info(f"{'  ' * depth}生成clean background...")
+        """
+        生成clean background
+        
+        根据元素类型从注册表选择对应的重绘方法：
+        - 如果指定了element_type，使用该类型对应的重绘方法
+        - 否则使用默认的重绘方法
+        """
+        logger.info(f"{'  ' * depth}生成clean background (element_type={element_type})...")
+        
+        # 从注册表获取重绘方法
+        inpaint_provider = self._inpaint_registry.get_provider(element_type)
+        if inpaint_provider is None:
+            logger.warning(f"{'  ' * depth}未找到重绘方法，跳过")
+            return None
         
         try:
             bboxes = collect_bboxes_from_elements(elements)
@@ -302,8 +317,9 @@ class ImageEditabilityService:
             output_dir = self._upload_folder / 'editable_images' / image_id
             output_dir.mkdir(parents=True, exist_ok=True)
             
-            # 调用inpaint提供者
-            result_img = self._inpaint_provider.inpaint_regions(
+            # 调用注册表中选择的重绘方法
+            logger.info(f"{'  ' * depth}使用 {inpaint_provider.__class__.__name__} 进行重绘")
+            result_img = inpaint_provider.inpaint_regions(
                 image=img,
                 bboxes=filtered_bboxes,
                 types=filtered_types,
