@@ -865,19 +865,51 @@ def export_editable_pptx_with_recursive_analysis_task(
             
             logger.info(f"找到 {len(image_paths)} 张图片")
             
-            # 初始化任务进度
+            # 初始化任务进度（包含消息日志）
             task = Task.query.get(task_id)
-            total_steps = 3  # 1: 递归分析, 2: 创建PPTX, 3: 完成
             task.set_progress({
-                "total": total_steps,
+                "total": 100,  # 使用百分比
                 "completed": 0,
                 "failed": 0,
-                "current_step": "开始递归分析..."
+                "current_step": "准备中...",
+                "percent": 0,
+                "messages": ["🚀 开始导出可编辑PPTX..."]  # 消息日志
             })
             db.session.commit()
             
-            # Step 1: 使用递归分析方法创建可编辑PPTX
-            logger.info("Step 1: 使用递归分析方法处理图片...")
+            # 进度回调函数 - 更新数据库中的进度
+            progress_messages = ["🚀 开始导出可编辑PPTX..."]
+            max_messages = 10  # 最多保留最近10条消息
+            
+            def progress_callback(step: str, message: str, percent: int):
+                """更新任务进度到数据库"""
+                nonlocal progress_messages
+                try:
+                    # 添加新消息到日志
+                    new_message = f"[{step}] {message}"
+                    progress_messages.append(new_message)
+                    # 只保留最近的消息
+                    if len(progress_messages) > max_messages:
+                        progress_messages = progress_messages[-max_messages:]
+                    
+                    # 更新数据库
+                    task = Task.query.get(task_id)
+                    if task:
+                        task.set_progress({
+                            "total": 100,
+                            "completed": percent,
+                            "failed": 0,
+                            "current_step": message,
+                            "percent": percent,
+                            "messages": progress_messages.copy()
+                        })
+                        db.session.commit()
+                except Exception as e:
+                    logger.warning(f"更新进度失败: {e}")
+            
+            # Step 1: 准备工作
+            logger.info("Step 1: 准备工作...")
+            progress_callback("准备", f"找到 {len(image_paths)} 张幻灯片图片", 2)
             
             # 准备输出路径
             exports_dir = os.path.join(app.config['UPLOAD_FOLDER'], project_id, 'exports')
@@ -902,18 +934,12 @@ def export_editable_pptx_with_recursive_analysis_task(
             
             logger.info(f"幻灯片尺寸: {slide_width}x{slide_height}")
             logger.info(f"递归深度: {max_depth}, 并发数: {max_workers}")
-            
-            # 更新进度
-            task = Task.query.get(task_id)
-            prog = task.get_progress()
-            prog['completed'] = 1
-            prog['current_step'] = f"递归分析图片中（深度={max_depth}）..."
-            task.set_progress(prog)
-            db.session.commit()
+            progress_callback("准备", f"幻灯片尺寸: {slide_width}×{slide_height}", 3)
             
             # Step 2: 创建文字属性提取器
             from services.image_editability import TextAttributeExtractorFactory
             text_attribute_extractor = TextAttributeExtractorFactory.create_caption_model_extractor()
+            progress_callback("准备", "文字属性提取器已初始化", 5)
             
             # Step 3: 调用导出方法（配置自动从 Flask config 获取）
             logger.info("Step 3: 创建可编辑PPTX...")
@@ -924,31 +950,29 @@ def export_editable_pptx_with_recursive_analysis_task(
                 slide_height_pixels=slide_height,
                 max_depth=max_depth,
                 max_workers=max_workers,
-                text_attribute_extractor=text_attribute_extractor
+                text_attribute_extractor=text_attribute_extractor,
+                progress_callback=progress_callback
             )
             
             logger.info(f"✓ 可编辑PPTX已创建: {output_path}")
             
-            # 更新进度
-            task = Task.query.get(task_id)
-            prog = task.get_progress()
-            prog['completed'] = 2
-            prog['current_step'] = "完成"
-            task.set_progress(prog)
-            db.session.commit()
-            
-            # Step 3: 标记任务完成
+            # Step 4: 标记任务完成
             download_path = f"/files/{project_id}/exports/{filename}"
+            
+            # 添加完成消息
+            progress_messages.append("✅ 导出完成！")
             
             task = Task.query.get(task_id)
             if task:
                 task.status = 'COMPLETED'
                 task.completed_at = datetime.utcnow()
                 task.set_progress({
-                    "total": total_steps,
-                    "completed": total_steps,
+                    "total": 100,
+                    "completed": 100,
                     "failed": 0,
-                    "current_step": "完成",
+                    "current_step": "✓ 导出完成",
+                    "percent": 100,
+                    "messages": progress_messages,
                     "download_url": download_path,
                     "filename": filename,
                     "method": "recursive_analysis",

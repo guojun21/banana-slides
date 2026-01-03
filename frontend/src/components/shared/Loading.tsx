@@ -1,10 +1,18 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { cn } from '@/utils';
+
+interface ProgressData {
+  total: number;
+  completed: number;
+  percent?: number;
+  current_step?: string;
+  messages?: string[];
+}
 
 interface LoadingProps {
   fullscreen?: boolean;
   message?: string;
-  progress?: { total: number; completed: number };
+  progress?: ProgressData;
 }
 
 export const Loading: React.FC<LoadingProps> = ({
@@ -12,8 +20,28 @@ export const Loading: React.FC<LoadingProps> = ({
   message = '加载中...',
   progress,
 }) => {
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // 自动滚动到最新消息
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [progress?.messages]);
+  
+  // 计算进度百分比
+  const getPercent = () => {
+    if (!progress) return 0;
+    if (progress.percent !== undefined) return progress.percent;
+    if (progress.total > 0) return Math.round((progress.completed / progress.total) * 100);
+    return 0;
+  };
+  
+  const percent = getPercent();
+  const hasMessages = progress?.messages && progress.messages.length > 0;
+  
   const content = (
-    <div className="flex flex-col items-center justify-center">
+    <div className="flex flex-col items-center justify-center max-w-md w-full px-4">
       {/* 加载图标 */}
       <div className="relative w-12 h-12 mb-4">
         <div className="absolute inset-0 border-4 border-banana-100 rounded-full" />
@@ -21,20 +49,45 @@ export const Loading: React.FC<LoadingProps> = ({
       </div>
       
       {/* 消息 */}
-      <p className="text-lg text-gray-700 mb-4">{message}</p>
+      <p className="text-lg text-gray-700 mb-4 text-center">{message}</p>
       
       {/* 进度条 */}
       {progress && (
-        <div className="w-64">
+        <div className="w-full">
           <div className="flex justify-between text-sm text-gray-600 mb-2">
-            <span>已完成 {progress.completed}/{progress.total} 页</span>
-            <span>{Math.round((progress.completed / progress.total) * 100)}%</span>
+            <span className="truncate max-w-[70%]">
+              {progress.current_step || `已完成 ${progress.completed}/${progress.total}`}
+            </span>
+            <span className="font-medium">{percent}%</span>
           </div>
           <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-banana-500 to-banana-600 transition-all duration-300"
-              style={{ width: `${(progress.completed / progress.total) * 100}%` }}
+              style={{ width: `${percent}%` }}
             />
+          </div>
+        </div>
+      )}
+      
+      {/* 滚动消息日志 */}
+      {hasMessages && (
+        <div className="w-full mt-4">
+          <div className="bg-gray-900 rounded-lg p-3 h-32 overflow-y-auto font-mono text-xs">
+            {progress.messages!.map((msg, index) => (
+              <div 
+                key={index} 
+                className={cn(
+                  "py-0.5",
+                  index === progress.messages!.length - 1 
+                    ? "text-banana-400" 
+                    : "text-gray-400"
+                )}
+              >
+                <span className="text-gray-600 mr-2">›</span>
+                {msg}
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
           </div>
         </div>
       )}

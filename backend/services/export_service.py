@@ -655,7 +655,8 @@ class ExportService:
         max_depth: int = 2,
         max_workers: int = 8,
         editable_images: List = None,  # 可选：直接传入已分析的EditableImage列表
-        text_attribute_extractor = None  # 可选：文字属性提取器，用于提取颜色、粗体、斜体等样式
+        text_attribute_extractor = None,  # 可选：文字属性提取器，用于提取颜色、粗体、斜体等样式
+        progress_callback = None  # 可选：进度回调函数 (step, message, percent) -> None
     ) -> bytes:
         """
         使用递归图片可编辑化服务创建可编辑PPTX
@@ -685,24 +686,37 @@ class ExportService:
         from services.image_editability import ServiceConfig, ImageEditabilityService
         from utils.pptx_builder import PPTXBuilder
         
+        # 辅助函数：报告进度
+        def report_progress(step: str, message: str, percent: int):
+            logger.info(f"[进度 {percent}%] {step}: {message}")
+            if progress_callback:
+                try:
+                    progress_callback(step, message, percent)
+                except Exception as e:
+                    logger.warning(f"进度回调失败: {e}")
+        
         # 如果已提供分析结果，直接使用；否则需要分析
         if editable_images is not None:
             logger.info(f"使用已提供的 {len(editable_images)} 个分析结果创建PPTX")
+            report_progress("准备", f"使用已有分析结果（{len(editable_images)} 页）", 10)
         else:
             if not image_paths:
                 raise ValueError("必须提供 image_paths 或 editable_images 之一")
             
-            logger.info(f"开始使用递归分析方法创建可编辑PPTX，共 {len(image_paths)} 页")
+            total_pages = len(image_paths)
+            logger.info(f"开始使用递归分析方法创建可编辑PPTX，共 {total_pages} 页")
+            report_progress("开始", f"准备分析 {total_pages} 页幻灯片...", 0)
             
             # 1. 创建ImageEditabilityService（配置自动从 Flask config 获取）
             config = ServiceConfig.from_defaults(max_depth=max_depth)
             editability_service = ImageEditabilityService(config)
             
             # 2. 并发处理所有页面，生成EditableImage结构
-            logger.info(f"Step 1: 分析 {len(image_paths)} 张图片（并发数: {max_workers}）...")
+            report_progress("版面分析", f"开始分析 {total_pages} 张图片（并发数: {max_workers}）...", 5)
             from concurrent.futures import ThreadPoolExecutor, as_completed
             
             editable_images = []
+            completed_count = 0
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
                     executor.submit(editability_service.make_image_editable, img_path): idx
@@ -714,6 +728,10 @@ class ExportService:
                     idx = futures[future]
                     try:
                         results[idx] = future.result()
+                        completed_count += 1
+                        # 版面分析占 5% - 40% 的进度
+                        percent = 5 + int(35 * completed_count / total_pages)
+                        report_progress("版面分析", f"已完成第 {completed_count}/{total_pages} 页的版面分析", percent)
                     except Exception as e:
                         logger.error(f"处理图片 {image_paths[idx]} 失败: {e}")
                         raise
@@ -725,20 +743,22 @@ class ExportService:
         # 经测试，逐个裁剪区域分析的效果更好，继续使用旧逻辑
         text_styles_cache = {}
         if text_attribute_extractor:
-            logger.info(f"Step 2: 批量提取文本样式...")
+            report_progress("样式提取", "开始提取文本样式...", 45)
             all_text_items = []
             for editable_img in editable_images:
                 text_items = ExportService._collect_text_elements_for_extraction(editable_img.elements)
                 all_text_items.extend(text_items)
             
             if all_text_items:
+                report_progress("样式提取", f"并行提取 {len(all_text_items)} 个文本元素的样式...", 50)
                 text_styles_cache = ExportService._batch_extract_text_styles(
                     text_items=all_text_items,
                     text_attribute_extractor=text_attribute_extractor,
                     max_workers=max_workers * 2  # 文本属性提取使用更高并发
                 )
+                report_progress("样式提取", f"✓ 完成 {len(text_styles_cache)} 个文本样式提取", 70)
         
-        logger.info(f"Step 4: 创建PPTX...")
+        report_progress("构建PPTX", "开始构建可编辑PPTX文件...", 75)
         
         # 4. 创建PPTX构建器
         builder = PPTXBuilder()
@@ -746,8 +766,12 @@ class ExportService:
         builder.setup_presentation_size(slide_width_pixels, slide_height_pixels)
         
         # 5. 为每个页面构建幻灯片
+        total_pages = len(editable_images)
         for page_idx, editable_img in enumerate(editable_images):
-            logger.info(f"  构建第 {page_idx + 1}/{len(editable_images)} 页...")
+            # 构建PPTX占 75% - 95% 的进度
+            percent = 75 + int(20 * page_idx / total_pages)
+            report_progress("构建PPTX", f"构建第 {page_idx + 1}/{total_pages} 页...", percent)
+            logger.info(f"  构建第 {page_idx + 1}/{total_pages} 页...")
             
             # 创建空白幻灯片
             slide = builder.add_blank_slide()
@@ -796,12 +820,15 @@ class ExportService:
             logger.info(f"    ✓ 第 {page_idx + 1} 页完成，添加了 {len(editable_img.elements)} 个元素")
         
         # 5. 保存或返回字节流
+        report_progress("保存文件", "正在保存PPTX文件...", 95)
         if output_file:
             builder.save(output_file)
+            report_progress("完成", f"✓ 可编辑PPTX已保存", 100)
             logger.info(f"✓ 可编辑PPTX已保存: {output_file}")
             return None
         else:
             pptx_bytes = builder.to_bytes()
+            report_progress("完成", f"✓ 可编辑PPTX已生成", 100)
             logger.info(f"✓ 可编辑PPTX已生成（{len(pptx_bytes)} 字节）")
             return pptx_bytes
     
