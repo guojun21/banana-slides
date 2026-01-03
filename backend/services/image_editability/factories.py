@@ -417,15 +417,21 @@ class ServiceConfig:
         mineru_api_base: Optional[str] = None,
         upload_folder: Optional[str] = None,
         ai_service: Optional[Any] = None,
+        use_hybrid_extractor: bool = True,
         **kwargs
     ) -> 'ServiceConfig':
         """
         从默认参数创建配置
         
         默认配置（推荐用于导出PPTX）：
-        - 元素提取：MinerU通用版面分割
+        - 元素提取：混合提取器（MinerU版面分析 + 百度高精度OCR）
         - 背景生成：GenerativeEdit（生成式大模型）
         - 递归深度：1
+        
+        混合提取器合并策略：
+        1. 图片类型bbox里包含的百度OCR bbox → 删除
+        2. 表格类型bbox里包含的百度OCR bbox → 保留百度OCR结果，删除MinerU表格bbox
+        3. 其他类型与百度OCR bbox有交集 → 使用百度OCR结果
         
         支持动态注册新的元素类型到不同的提取器/重绘方法。
         
@@ -436,10 +442,13 @@ class ServiceConfig:
             mineru_api_base: MinerU API base URL（可选，默认从 Flask config 获取）
             upload_folder: 上传文件夹路径（可选，默认从 Flask config 获取）
             ai_service: AI服务实例（可选，用于生成式重绘）
+            use_hybrid_extractor: 是否使用混合提取器（默认True）
             **kwargs: 其他配置参数
                 - max_depth: 最大递归深度（默认1）
                 - min_image_size: 最小图片尺寸（默认200）
                 - min_image_area: 最小图片面积（默认40000）
+                - contain_threshold: 混合提取器包含判断阈值（默认0.8）
+                - intersection_threshold: 混合提取器交集判断阈值（默认0.3）
         
         Returns:
             ServiceConfig实例
@@ -486,15 +495,31 @@ class ServiceConfig:
             mineru_api_base=mineru_api_base
         )
         
-        # 创建MinerU提取器（通用分割）
-        mineru_extractor = MinerUElementExtractor(parser_service, upload_path)
-        logger.info("✅ MinerU提取器已创建（通用分割）")
-        
-        # 创建提取器注册表 - 使用MinerU作为通用提取器
+        # 创建提取器注册表
         extractor_registry = ExtractorRegistry()
-        extractor_registry.register_default(mineru_extractor)
-        # 可通过 extractor_registry.register('新类型', 新提取器) 动态扩展
-        logger.info("✅ 提取器注册表已创建（MinerU通用）")
+        
+        if use_hybrid_extractor:
+            # 尝试创建混合提取器（MinerU + 百度高精度OCR）
+            hybrid_extractor = ExtractorFactory.create_hybrid_extractor(
+                parser_service=parser_service,
+                upload_folder=upload_path,
+                contain_threshold=kwargs.get('contain_threshold', 0.8),
+                intersection_threshold=kwargs.get('intersection_threshold', 0.3)
+            )
+            
+            if hybrid_extractor:
+                extractor_registry.register_default(hybrid_extractor)
+                logger.info("✅ 混合提取器已创建（MinerU + 百度高精度OCR）")
+            else:
+                # 回退到MinerU
+                mineru_extractor = MinerUElementExtractor(parser_service, upload_path)
+                extractor_registry.register_default(mineru_extractor)
+                logger.warning("⚠️ 混合提取器创建失败，回退到MinerU提取器")
+        else:
+            # 使用纯MinerU提取器
+            mineru_extractor = MinerUElementExtractor(parser_service, upload_path)
+            extractor_registry.register_default(mineru_extractor)
+            logger.info("✅ MinerU提取器已创建（通用分割）")
         
         # 创建生成式重绘提供者
         generative_provider = InpaintProviderFactory.create_generative_edit_provider(
@@ -505,13 +530,12 @@ class ServiceConfig:
         inpaint_registry = InpaintProviderRegistry()
         inpaint_registry.register_default(generative_provider)
         logger.info("✅ 重绘注册表已创建（GenerativeEdit通用）")
-        # 可通过 inpaint_registry.register('新类型', 新重绘方法) 动态扩展
         
         return cls(
             upload_folder=upload_path,
             extractor_registry=extractor_registry,
             inpaint_registry=inpaint_registry,
-            max_depth=kwargs.get('max_depth', 1),  # 默认递归深度1
+            max_depth=kwargs.get('max_depth', 1),
             min_image_size=kwargs.get('min_image_size', 200),
             min_image_area=kwargs.get('min_image_area', 40000)
         )
