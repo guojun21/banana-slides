@@ -87,6 +87,8 @@ class PPTXBuilder:
     # Font paths for precise text measurement
     # Priority: try common fonts that support CJK characters
     FONT_PATHS = [
+        # 项目内置字体（优先使用，确保 Docker 环境可用）
+        os.path.join(os.path.dirname(__file__), "..", "fonts", "NotoSansSC-Regular.ttf"),
         # Windows fonts (accessible via /mnt in WSL)
         "/mnt/c/Windows/Fonts/msyh.ttc",      # Microsoft YaHei (微软雅黑)
         "/mnt/c/Windows/Fonts/simhei.ttf",    # SimHei (黑体)
