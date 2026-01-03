@@ -272,6 +272,20 @@ class MinerUElementExtractor(ElementExtractor):
                 if not bbox or len(bbox) != 4:
                     return None
                 
+                # 过滤掉 type 为 header/footer 且内容仅为 "#" 的特殊标记
+                if block_type in ['header', 'footer']:
+                    if block.get('lines'):
+                        # 提取所有文本内容
+                        all_text = []
+                        for line in block['lines']:
+                            for span in line.get('spans', []):
+                                if span.get('type') == 'text' and span.get('content'):
+                                    all_text.append(span['content'])
+                        # 如果所有文本合并后仅为"#"，则跳过此块
+                        combined_text = ''.join(all_text).strip()
+                        if combined_text == '#':
+                            return None
+                
                 # 缩放bbox到目标尺寸
                 scaled_bbox = [
                     bbox[0] * scale_x,
