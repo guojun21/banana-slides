@@ -2,15 +2,15 @@
 混合元素提取器 - 结合MinerU版面分析和百度高精度OCR的提取策略
 
 工作流程：
-1. MinerU先识别，获得bbox和类型（图片、表格、文字等）
-2. 百度高精度OCR识别，获得文字bbox
-3. 结果合并：
+1. MinerU和百度OCR并行识别（提升速度）
+2. 结果合并：
    - 图片类型bbox里包含的百度OCR bbox → 删除百度OCR bbox
    - 表格类型bbox里包含的百度OCR bbox → 保留百度OCR bbox，删除MinerU表格bbox
    - 其他类型bbox与百度OCR bbox有交集 → 使用百度OCR结果，删除MinerU bbox
 """
 import logging
 from typing import Dict, Any, List, Optional, Tuple
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from PIL import Image
 
 from .extractors import (
@@ -221,20 +221,45 @@ class HybridElementExtractor(ElementExtractor):
         
         logger.info(f"{indent}🔀 开始混合提取: {image_path}")
         
-        # 1. MinerU版面分析
-        logger.info(f"{indent}📄 Step 1: MinerU版面分析...")
-        mineru_result = self._mineru_extractor.extract(image_path, element_type, **kwargs)
+        # 1. MinerU版面分析 和 百度高精度OCR 并行执行
+        logger.info(f"{indent}📄🔤 Step 1: MinerU + 百度OCR 并行识别...")
+        
+        mineru_result = None
+        baidu_result = None
+        
+        def run_mineru():
+            return self._mineru_extractor.extract(image_path, element_type, **kwargs)
+        
+        def run_baidu_ocr():
+            return self._baidu_ocr_extractor.extract(image_path, element_type, **kwargs)
+        
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            future_mineru = executor.submit(run_mineru)
+            future_baidu = executor.submit(run_baidu_ocr)
+            
+            # 等待两个任务完成
+            for future in as_completed([future_mineru, future_baidu]):
+                try:
+                    if future == future_mineru:
+                        mineru_result = future.result()
+                        logger.info(f"{indent}  ✅ MinerU识别到 {len(mineru_result.elements)} 个元素")
+                    else:
+                        baidu_result = future.result()
+                        logger.info(f"{indent}  ✅ 百度OCR识别到 {len(baidu_result.elements)} 个元素")
+                except Exception as e:
+                    logger.error(f"{indent}  ❌ 提取失败: {e}")
+        
+        # 确保两个结果都存在
+        if mineru_result is None:
+            mineru_result = ExtractionResult(elements=[])
+        if baidu_result is None:
+            baidu_result = ExtractionResult(elements=[])
+        
         mineru_elements = mineru_result.elements
-        logger.info(f"{indent}  MinerU识别到 {len(mineru_elements)} 个元素")
-        
-        # 2. 百度高精度OCR
-        logger.info(f"{indent}🔤 Step 2: 百度高精度OCR...")
-        baidu_result = self._baidu_ocr_extractor.extract(image_path, element_type, **kwargs)
         baidu_elements = baidu_result.elements
-        logger.info(f"{indent}  百度OCR识别到 {len(baidu_elements)} 个元素")
         
-        # 3. 合并结果
-        logger.info(f"{indent}🔧 Step 3: 合并结果...")
+        # 2. 合并结果
+        logger.info(f"{indent}🔧 Step 2: 合并结果...")
         merged_elements = self._merge_results(mineru_elements, baidu_elements, depth)
         logger.info(f"{indent}  合并后共 {len(merged_elements)} 个元素")
         
