@@ -263,12 +263,13 @@ class MinerUElementExtractor(ElementExtractor):
             scale_x = target_image_size[0] / source_page_size[0]
             scale_y = target_image_size[1] / source_page_size[1]
             
-            for block in page_info.get('para_blocks', []):
+            # 处理块的通用函数
+            def process_block(block):
                 bbox = block.get('bbox')
                 block_type = block.get('type', 'text')
                 
                 if not bbox or len(bbox) != 4:
-                    continue
+                    return None
                 
                 # 缩放bbox到目标尺寸
                 scaled_bbox = [
@@ -280,7 +281,7 @@ class MinerUElementExtractor(ElementExtractor):
                 
                 # 提取content（文本）
                 content = None
-                if block_type in ['text', 'title']:
+                if block_type in ['text', 'title', 'header', 'footer']:
                     if block.get('lines'):
                         line_texts = []
                         for line in block['lines']:
@@ -327,13 +328,25 @@ class MinerUElementExtractor(ElementExtractor):
                             if img_path:
                                 break
                 
-                elements.append({
+                return {
                     'bbox': scaled_bbox,
                     'type': block_type,
                     'content': content,
                     'image_path': img_path,  # 现在是绝对路径
                     'metadata': block
-                })
+                }
+            
+            # 处理主要内容块（para_blocks）
+            for block in page_info.get('para_blocks', []):
+                element = process_block(block)
+                if element:
+                    elements.append(element)
+            
+            # 处理页眉页脚（discarded_blocks）
+            for block in page_info.get('discarded_blocks', []):
+                element = process_block(block)
+                if element:
+                    elements.append(element)
             
             logger.info(f"MinerU提取了 {len(elements)} 个元素")
         
