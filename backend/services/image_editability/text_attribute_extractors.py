@@ -368,7 +368,7 @@ class TextAttributeExtractorRegistry:
     """
     
     # 预定义的元素类型分组
-    TEXT_TYPES = {'text', 'title', 'paragraph', 'heading'}
+    TEXT_TYPES = {'text', 'title', 'paragraph', 'heading', 'header', 'footer'}
     TABLE_TEXT_TYPES = {'table_cell'}
     
     def __init__(self):

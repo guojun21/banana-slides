@@ -580,7 +580,7 @@ class ExtractorRegistry:
     # 预定义的元素类型分组
     TABLE_TYPES = {'table', 'table_cell'}
     IMAGE_TYPES = {'image', 'figure', 'chart', 'diagram'}
-    TEXT_TYPES = {'text', 'title', 'paragraph'}
+    TEXT_TYPES = {'text', 'title', 'paragraph', 'header', 'footer'}
     
     def __init__(self):
         """初始化注册表"""
