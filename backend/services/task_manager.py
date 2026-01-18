@@ -66,11 +66,11 @@ class TaskManager:
 task_manager = TaskManager(max_workers=4)
 
 
-def save_image_with_version(image, project_id: str, page_id: str, file_service, 
+def save_image_with_version(image, project_id: str, page_id: str, file_service,
                             page_obj=None, image_format: str = 'PNG') -> tuple[str, int]:
     """
     保存图片并创建历史版本记录的公共函数
-    
+
     Args:
         image: PIL Image 对象
         project_id: 项目ID
@@ -78,31 +78,39 @@ def save_image_with_version(image, project_id: str, page_id: str, file_service,
         file_service: FileService 实例
         page_obj: Page 对象（可选，如果提供则更新页面状态）
         image_format: 图片格式，默认 PNG
-    
+
     Returns:
         tuple: (image_path, version_number) - 图片路径和版本号
-    
+
     这个函数会：
     1. 计算下一个版本号（使用 MAX 查询确保安全）
     2. 标记所有旧版本为非当前版本
     3. 保存图片到最终位置
-    4. 创建新版本记录
-    5. 如果提供了 page_obj，更新页面状态和图片路径
+    4. 生成并保存压缩的缓存图片
+    5. 创建新版本记录
+    6. 如果提供了 page_obj，更新页面状态和图片路径
     """
     # 使用 MAX 查询确保版本号安全（即使有版本被删除也不会重复）
     max_version = db.session.query(func.max(PageImageVersion.version_number)).filter_by(page_id=page_id).scalar() or 0
     next_version = max_version + 1
-    
+
     # 批量更新：标记所有旧版本为非当前版本（使用单条 SQL 更高效）
     PageImageVersion.query.filter_by(page_id=page_id).update({'is_current': False})
-    
-    # 保存图片到最终位置（使用版本号）
+
+    # 保存原图到最终位置（使用版本号）
     image_path = file_service.save_generated_image(
         image, project_id, page_id,
         version_number=next_version,
         image_format=image_format
     )
-    
+
+    # 生成并保存压缩的缓存图片（用于前端快速显示）
+    cached_image_path = file_service.save_cached_image(
+        image, project_id, page_id,
+        version_number=next_version,
+        quality=85
+    )
+
     # 创建新版本记录
     new_version = PageImageVersion(
         page_id=page_id,
@@ -111,18 +119,19 @@ def save_image_with_version(image, project_id: str, page_id: str, file_service,
         is_current=True
     )
     db.session.add(new_version)
-    
+
     # 如果提供了 page_obj，更新页面状态和图片路径
     if page_obj:
         page_obj.generated_image_path = image_path
+        page_obj.cached_image_path = cached_image_path
         page_obj.status = 'COMPLETED'
         page_obj.updated_at = datetime.utcnow()
-    
+
     # 提交事务
     db.session.commit()
-    
-    logger.debug(f"Page {page_id} image saved as version {next_version}: {image_path}")
-    
+
+    logger.debug(f"Page {page_id} image saved as version {next_version}: {image_path}, cached: {cached_image_path}")
+
     return image_path, next_version
 
 
@@ -810,6 +819,8 @@ def export_editable_pptx_with_recursive_analysis_task(
     page_ids: list = None,
     max_depth: int = 2,
     max_workers: int = 4,
+    export_extractor_method: str = 'hybrid',
+    export_inpaint_method: str = 'hybrid',
     app=None
 ):
     """
@@ -831,9 +842,11 @@ def export_editable_pptx_with_recursive_analysis_task(
         page_ids: 可选的页面ID列表（如果提供，只导出这些页面）
         max_depth: 最大递归深度
         max_workers: 并发处理数
+        export_extractor_method: 组件提取方法 ('mineru' 或 'hybrid')
+        export_inpaint_method: 背景修复方法 ('generative', 'baidu', 'hybrid')
         app: Flask应用实例
     """
-    logger.info(f"🚀 Task {task_id} started: export_editable_pptx_with_recursive_analysis (project={project_id}, depth={max_depth}, workers={max_workers})")
+    logger.info(f"🚀 Task {task_id} started: export_editable_pptx_with_recursive_analysis (project={project_id}, depth={max_depth}, workers={max_workers}, extractor={export_extractor_method}, inpaint={export_inpaint_method})")
     
     if app is None:
         raise ValueError("Flask app instance must be provided")
@@ -946,9 +959,11 @@ def export_editable_pptx_with_recursive_analysis_task(
             text_attribute_extractor = TextAttributeExtractorFactory.create_caption_model_extractor()
             progress_callback("准备", "文字属性提取器已初始化", 5)
             
-            # Step 3: 调用导出方法（配置自动从 Flask config 获取）
-            logger.info("Step 3: 创建可编辑PPTX...")
-            ExportService.create_editable_pptx_with_recursive_analysis(
+            # Step 3: 调用导出方法（使用项目的导出设置）
+            logger.info(f"Step 3: 创建可编辑PPTX (extractor={export_extractor_method}, inpaint={export_inpaint_method})...")
+            progress_callback("配置", f"提取方法: {export_extractor_method}, 背景修复: {export_inpaint_method}", 6)
+            
+            _, export_warnings = ExportService.create_editable_pptx_with_recursive_analysis(
                 image_paths=image_paths,
                 output_file=output_path,
                 slide_width_pixels=slide_width,
@@ -956,7 +971,9 @@ def export_editable_pptx_with_recursive_analysis_task(
                 max_depth=max_depth,
                 max_workers=max_workers,
                 text_attribute_extractor=text_attribute_extractor,
-                progress_callback=progress_callback
+                progress_callback=progress_callback,
+                export_extractor_method=export_extractor_method,
+                export_inpaint_method=export_inpaint_method
             )
             
             logger.info(f"✓ 可编辑PPTX已创建: {output_path}")
@@ -966,6 +983,13 @@ def export_editable_pptx_with_recursive_analysis_task(
             
             # 添加完成消息
             progress_messages.append("✅ 导出完成！")
+            
+            # 添加警告信息（如果有）
+            warning_messages = []
+            if export_warnings and export_warnings.has_warnings():
+                warning_messages = export_warnings.to_summary()
+                progress_messages.extend(warning_messages)
+                logger.warning(f"导出有 {len(warning_messages)} 条警告")
             
             task = Task.query.get(task_id)
             if task:
@@ -981,7 +1005,9 @@ def export_editable_pptx_with_recursive_analysis_task(
                     "download_url": download_path,
                     "filename": filename,
                     "method": "recursive_analysis",
-                    "max_depth": max_depth
+                    "max_depth": max_depth,
+                    "warnings": warning_messages,  # 单独的警告列表
+                    "warning_details": export_warnings.to_dict() if export_warnings else {}  # 详细警告信息
                 })
                 db.session.commit()
                 logger.info(f"✓ 任务 {task_id} 完成 - 递归分析导出成功（深度={max_depth}）")

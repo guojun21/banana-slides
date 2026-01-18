@@ -1,7 +1,7 @@
 """Add user_token to settings table for multi-user support
 
-Revision ID: 005
-Revises: 004
+Revision ID: 012_add_user_token_to_settings
+Revises: 011_add_user_template_thumb
 Create Date: 2024-01-01 12:00:00.000000
 
 """
@@ -11,8 +11,8 @@ from sqlalchemy import text
 
 
 # revision identifiers, used by Alembic.
-revision = '005'
-down_revision = '004'
+revision = '012_add_user_token_to_settings'
+down_revision = '011_add_user_template_thumb'
 branch_labels = None
 depends_on = None
 

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings } from 'lucide-react';
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, ImagePreviewList, SiteStatusBanner } from '@/components/shared';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject, verifyApiKey } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, uploadMaterial, associateMaterialsToProject, verifyApiKey, listProjects } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { PRESET_STYLES } from '@/config/presetStyles';
 
@@ -379,9 +379,9 @@ export const Home: React.FC = () => {
         const verifyResult = await verifyApiKey();
         if (!verifyResult.data.available) {
           // API key 不可用，提示用户并跳转到设置页
-          show({ 
-            message: verifyResult.data.message || 'API key 不可用，请在设置中配置', 
-            type: 'error' 
+          show({
+            message: verifyResult.data.message || 'API key 不可用，请在设置中配置',
+            type: 'error'
           });
           // 延迟跳转，让用户看到提示信息
           setTimeout(() => {
@@ -392,9 +392,9 @@ export const Home: React.FC = () => {
       } catch (error: any) {
         // 验证接口调用失败，可能是网络问题
         console.error('验证 API key 失败:', error);
-        show({ 
-          message: '无法验证 API 配置，请检查网络连接或在设置中确认配置', 
-          type: 'error' 
+        show({
+          message: '无法验证 API 配置，请检查网络连接或在设置中确认配置',
+          type: 'error'
         });
         // 延迟跳转，让用户看到提示信息
         setTimeout(() => {

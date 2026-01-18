@@ -88,13 +88,40 @@ class AIService:
         if has_app_context() and current_app and hasattr(current_app, "config"):
             self.text_model = current_app.config.get("TEXT_MODEL", config.TEXT_MODEL)
             self.image_model = current_app.config.get("IMAGE_MODEL", config.IMAGE_MODEL)
+            # 分离的文本和图像推理配置
+            self.enable_text_reasoning = current_app.config.get("ENABLE_TEXT_REASONING", False)
+            self.text_thinking_budget = current_app.config.get("TEXT_THINKING_BUDGET", 1024)
+            self.enable_image_reasoning = current_app.config.get("ENABLE_IMAGE_REASONING", False)
+            self.image_thinking_budget = current_app.config.get("IMAGE_THINKING_BUDGET", 1024)
         else:
             self.text_model = config.TEXT_MODEL
             self.image_model = config.IMAGE_MODEL
+            self.enable_text_reasoning = False
+            self.text_thinking_budget = 1024
+            self.enable_image_reasoning = False
+            self.image_thinking_budget = 1024
         
         # Use provided providers or create from factory based on AI_PROVIDER_FORMAT (from Flask config or env var)
         self.text_provider = text_provider or get_text_provider(model=self.text_model)
         self.image_provider = image_provider or get_image_provider(model=self.image_model)
+    
+    def _get_text_thinking_budget(self) -> int:
+        """
+        获取文本生成的思考负载
+        
+        Returns:
+            如果启用文本推理则返回配置的 budget，否则返回 0
+        """
+        return self.text_thinking_budget if self.enable_text_reasoning else 0
+    
+    def _get_image_thinking_budget(self) -> int:
+        """
+        获取图像生成的思考负载
+        
+        Returns:
+            如果启用图像推理则返回配置的 budget，否则返回 0
+        """
+        return self.image_thinking_budget if self.enable_image_reasoning else 0
     
     @staticmethod
     def extract_image_urls_from_markdown(text: str) -> List[str]:
@@ -105,7 +132,7 @@ class AIService:
             text: Markdown 文本，可能包含 ![](url) 格式的图片
             
         Returns:
-            图片 URL 列表（包括 http/https URL 和 /files/mineru/ 开头的本地路径）
+            图片 URL 列表（包括 http/https URL 和 /files/ 开头的本地路径）
         """
         if not text:
             return []
@@ -114,11 +141,11 @@ class AIService:
         pattern = r'!\[.*?\]\((.*?)\)'
         matches = re.findall(pattern, text)
         
-        # 过滤掉空字符串，支持 http/https URL 和 /files/mineru/ 开头的本地路径
+        # 过滤掉空字符串，支持 http/https URL 和 /files/ 开头的本地路径（包括 mineru、materials 等）
         urls = []
         for url in matches:
             url = url.strip()
-            if url and (url.startswith('http://') or url.startswith('https://') or url.startswith('/files/mineru/')):
+            if url and (url.startswith('http://') or url.startswith('https://') or url.startswith('/files/')):
                 urls.append(url)
         
         return urls
@@ -163,7 +190,7 @@ class AIService:
         
         Args:
             prompt: 生成提示词
-            thinking_budget: 思考预算
+            thinking_budget: 思考预算（会根据 enable_text_reasoning 配置自动调整）
             
         Returns:
             解析后的JSON对象（字典或列表）
@@ -171,8 +198,9 @@ class AIService:
         Raises:
             json.JSONDecodeError: JSON解析失败（重试3次后仍失败）
         """
-        # 调用AI生成文本
-        response_text = self.text_provider.generate_text(prompt, thinking_budget=thinking_budget)
+        # 调用AI生成文本（根据 enable_text_reasoning 配置调整 thinking_budget）
+        actual_budget = self._get_text_thinking_budget()
+        response_text = self.text_provider.generate_text(prompt, thinking_budget=actual_budget)
         
         # 清理响应文本：移除markdown代码块标记和多余空白
         cleaned_text = response_text.strip().strip("```json").strip("```").strip()
@@ -181,6 +209,53 @@ class AIService:
             return json.loads(cleaned_text)
         except json.JSONDecodeError as e:
             logger.warning(f"JSON解析失败，将重新生成。原始文本: {cleaned_text[:200]}... 错误: {str(e)}")
+            raise
+    
+    @retry(
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception_type((json.JSONDecodeError, ValueError)),
+        reraise=True
+    )
+    def generate_json_with_image(self, prompt: str, image_path: str, thinking_budget: int = 1000) -> Union[Dict, List]:
+        """
+        带图片输入的JSON生成，如果解析失败则重新生成（最多重试3次）
+        
+        Args:
+            prompt: 生成提示词
+            image_path: 图片文件路径
+            thinking_budget: 思考预算（会根据 enable_text_reasoning 配置自动调整）
+            
+        Returns:
+            解析后的JSON对象（字典或列表）
+            
+        Raises:
+            json.JSONDecodeError: JSON解析失败（重试3次后仍失败）
+            ValueError: text_provider 不支持图片输入
+        """
+        # 调用AI生成文本（带图片），根据 enable_text_reasoning 配置调整 thinking_budget
+        actual_budget = self._get_text_thinking_budget()
+        if hasattr(self.text_provider, 'generate_with_image'):
+            response_text = self.text_provider.generate_with_image(
+                prompt=prompt,
+                image_path=image_path,
+                thinking_budget=actual_budget
+            )
+        elif hasattr(self.text_provider, 'generate_text_with_images'):
+            response_text = self.text_provider.generate_text_with_images(
+                prompt=prompt,
+                images=[image_path],
+                thinking_budget=actual_budget
+            )
+        else:
+            raise ValueError("text_provider 不支持图片输入")
+        
+        # 清理响应文本：移除markdown代码块标记和多余空白
+        cleaned_text = response_text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        
+        try:
+            return json.loads(cleaned_text)
+        except json.JSONDecodeError as e:
+            logger.warning(f"JSON解析失败（带图片），将重新生成。原始文本: {cleaned_text[:200]}... 错误: {str(e)}")
             raise
     
     @staticmethod
@@ -299,7 +374,9 @@ class AIService:
             language=language
         )
         
-        response_text = self.text_provider.generate_text(desc_prompt, thinking_budget=1000)
+        # 根据 enable_text_reasoning 配置调整 thinking_budget
+        actual_budget = self._get_text_thinking_budget()
+        response_text = self.text_provider.generate_text(desc_prompt, thinking_budget=actual_budget)
         
         return dedent(response_text)
     
@@ -431,13 +508,17 @@ class AIService:
                             logger.warning(f"Invalid image reference: {ref_img}, skipping...")
             
             logger.debug(f"Calling image provider for generation with {len(ref_images)} reference images...")
+            logger.debug(f"Enable image reasoning/thinking: {self.enable_image_reasoning}, budget: {self._get_image_thinking_budget()}")
             
             # 使用 image_provider 生成图片
+            # 根据 enable_image_reasoning 配置控制图像生成的思考模式
             return self.image_provider.generate_image(
                 prompt=prompt,
                 ref_images=ref_images if ref_images else None,
                 aspect_ratio=aspect_ratio,
-                resolution=resolution
+                resolution=resolution,
+                enable_thinking=self.enable_image_reasoning,
+                thinking_budget=self._get_image_thinking_budget()
             )
             
         except Exception as e:
