@@ -35,15 +35,16 @@ def _get_file_type(filename: str) -> str:
     return 'unknown'
 
 
-def _parse_file_async(file_id: str, file_path: str, filename: str, app):
+def _parse_file_async(file_id: str, file_path: str, filename: str, app, user_config: dict):
     """
     Parse file asynchronously in background
-    
+
     Args:
         file_id: Reference file ID
         file_path: Path to the uploaded file
         filename: Original filename
         app: Flask app instance (for app context)
+        user_config: User-specific configuration dict to use for this parsing
     """
     with app.app_context():
         try:
@@ -51,21 +52,21 @@ def _parse_file_async(file_id: str, file_path: str, filename: str, app):
             if not reference_file:
                 logger.error(f"Reference file {file_id} not found")
                 return
-            
+
             # Update status to parsing
             reference_file.parse_status = 'parsing'
             db.session.commit()
-            
-            # Initialize parser service
+
+            # Initialize parser service with user-specific config
             parser = FileParserService(
-                mineru_token=current_app.config['MINERU_TOKEN'],
-                mineru_api_base=current_app.config['MINERU_API_BASE'],
-                google_api_key=current_app.config.get('GOOGLE_API_KEY', ''),
-                google_api_base=current_app.config.get('GOOGLE_API_BASE', ''),
-                openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
-                openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
-                image_caption_model=current_app.config['IMAGE_CAPTION_MODEL'],
-                provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini')
+                mineru_token=user_config.get('MINERU_TOKEN'),
+                mineru_api_base=user_config.get('MINERU_API_BASE'),
+                google_api_key=user_config.get('GOOGLE_API_KEY', ''),
+                google_api_base=user_config.get('GOOGLE_API_BASE', ''),
+                openai_api_key=user_config.get('OPENAI_API_KEY', ''),
+                openai_api_base=user_config.get('OPENAI_API_BASE', ''),
+                image_caption_model=user_config.get('IMAGE_CAPTION_MODEL'),
+                provider_format=user_config.get('AI_PROVIDER_FORMAT', 'gemini')
             )
             
             # Parse file
@@ -337,14 +338,26 @@ def trigger_file_parse(file_id):
         # 获取文件路径
         upload_folder = current_app.config['UPLOAD_FOLDER']
         file_path = Path(upload_folder) / reference_file.file_path
-        
+
         if not file_path.exists():
             return error_response('FILE_NOT_FOUND', f'File not found: {file_path}', 404)
-        
-        # 启动异步解析
+
+        # 捕获当前请求上下文中的用户配置
+        user_config = {
+            'MINERU_TOKEN': current_app.config.get('MINERU_TOKEN'),
+            'MINERU_API_BASE': current_app.config.get('MINERU_API_BASE'),
+            'GOOGLE_API_KEY': current_app.config.get('GOOGLE_API_KEY', ''),
+            'GOOGLE_API_BASE': current_app.config.get('GOOGLE_API_BASE', ''),
+            'OPENAI_API_KEY': current_app.config.get('OPENAI_API_KEY', ''),
+            'OPENAI_API_BASE': current_app.config.get('OPENAI_API_BASE', ''),
+            'IMAGE_CAPTION_MODEL': current_app.config.get('IMAGE_CAPTION_MODEL'),
+            'AI_PROVIDER_FORMAT': current_app.config.get('AI_PROVIDER_FORMAT', 'gemini')
+        }
+
+        # 启动异步解析，传递用户配置
         thread = threading.Thread(
             target=_parse_file_async,
-            args=(reference_file.id, str(file_path), reference_file.filename, current_app._get_current_object())
+            args=(reference_file.id, str(file_path), reference_file.filename, current_app._get_current_object(), user_config)
         )
         thread.daemon = True
         thread.start()
