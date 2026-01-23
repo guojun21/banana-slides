@@ -48,7 +48,7 @@ jobs:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           GOOGLE_API_BASE: ${{ secrets.GOOGLE_API_BASE }}
           AI_PROVIDER_FORMAT: gemini
-          TEXT_MODEL: gemini-2.0-flash-exp
+          TEXT_MODEL: gemini-3-flash-preview
         run: |
           echo "开始翻译 README.md..."
           uv run python scripts/translate_readme.py

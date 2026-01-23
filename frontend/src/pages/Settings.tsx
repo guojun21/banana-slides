@@ -102,7 +102,7 @@ const settingsSections: SectionConfig[] = [
         key: 'text_model',
         label: '文本大模型',
         type: 'text',
-        placeholder: '留空使用环境变量配置 (如: gemini-2.0-flash-exp)',
+        placeholder: '留空使用环境变量配置 (如: gemini-3-flash-preview)',
         description: '用于生成大纲、描述等文本内容的模型名称',
       },
       {
@@ -116,7 +116,7 @@ const settingsSections: SectionConfig[] = [
         key: 'image_caption_model',
         label: '图片识别模型',
         type: 'text',
-        placeholder: '留空使用环境变量配置 (如: gemini-2.0-flash-exp)',
+        placeholder: '留空使用环境变量配置 (如: gemini-3-flash-preview)',
         description: '用于识别参考文件中的图片并生成描述',
       },
     ],
