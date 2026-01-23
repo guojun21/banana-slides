@@ -109,53 +109,15 @@ export const History: React.FC = () => {
 
   // ===== 删除操作 =====
 
-  const deleteProjects = useCallback(async (projectIds: string[]) => {
-    setIsDeleting(true);
-    const currentProjectId = localStorage.getItem('currentProjectId');
-    let deletedCurrentProject = false;
-
-    try {
-      // 批量删除
-      const deletePromises = projectIds.map(projectId => api.deleteProject(projectId));
-      await Promise.all(deletePromises);
-
-      // 检查是否删除了当前项目
-      if (currentProjectId && projectIds.includes(currentProjectId)) {
-        localStorage.removeItem('currentProjectId');
-        setCurrentProject(null);
-        deletedCurrentProject = true;
-      }
-
-      // 从列表中移除已删除的项目
-      setProjects(prev => prev.filter(p => {
-        const id = p.id || p.project_id;
-        return id && !projectIds.includes(id);
-      }));
-
-      // 清空选择
-      setSelectedProjects(new Set());
-
-      if (deletedCurrentProject) {
-        show({ 
-          message: '已删除项目，包括当前打开的项目', 
-          type: 'info' 
-        });
-      } else {
-        show({ 
-          message: `成功删除 ${projectIds.length} 个项目`, 
-          type: 'success' 
-        });
-      }
-    } catch (err: any) {
-      console.error('删除项目失败:', err);
-      show({ 
-        message: '删除项目失败: ' + (err.message || '未知错误'), 
-        type: 'error' 
-      });
-    } finally {
-      setIsDeleting(false);
-    }
-  }, [setCurrentProject, show]);
+  // 项目删除功能已禁用
+  const deleteProjects = useCallback(async (_projectIds: string[]) => {
+    show({
+      message: '公用版本不支持项目删除',
+      type: 'warning'
+    });
+    // 保持界面交互一致性（防止旧有调用遗留副作用）
+    setIsDeleting(false);
+  }, [show]);
 
   const handleDeleteProject = useCallback(async (e: React.MouseEvent, project: Project) => {
     e.stopPropagation(); // 阻止事件冒泡，避免触发项目选择
