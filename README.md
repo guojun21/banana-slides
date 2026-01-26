@@ -144,6 +144,25 @@
 - 【12-24】: main分支加入了基于nano-banana-pro背景提取的可编辑pptx导出方法（目前Beta）
 
 
+**常见问题**
+
+1. **生成页面文字有乱码，文字不清晰**
+    - 可选择更高分辨率的输出（openai 格式可能不支持调高分辨率，建议使用gemini格式）。根据测试，生成页面前将 1k 分辨率调整至 2k 后，文字渲染质量会显著提升。
+    - 请确保在页面描述中包含具体要渲染的文字内容。
+
+2. **导出可编辑 ppt 效果不佳，如文字重叠、无样式等**
+    - 90% 情况为 API 配置出现问题。可以参考 [issue 121](https://github.com/Anionex/banana-slides/issues/121) 中的排查与解决方案。
+
+3. **支持免费层级的 Gemini API Key 吗？**
+    - 免费层级只支持文本生成，不支持图片生成。
+
+4. **生成内容时提示 503 错误或 Retry Error**
+    - 可以根据 README 中的命令查看 Docker 后端日志，定位 503 问题的详细报错，一般是模型配置不正确导致。
+
+5. **.env 中设置了 API Key 之后，为什么不生效？**
+    - 运行时编辑 `.env` 后需要重启 Docker 容器以应用更改。
+    - 如果曾在网页设置页中配置参数，会覆盖 `.env` 中的参数，可通过“还原默认设置”恢复为 `.env` 设置。
+
 ## 🗺️ 开发计划
 
 | 状态 | 里程碑 |
@@ -246,7 +265,7 @@ OPENAI_API_BASE=https://api.openai.com/v1
 
 2. **启动服务**
 
-**⚡ 使用预构建镜像**
+**⚡ 使用预构建镜像（推荐）**
 
 项目在 Docker Hub 提供了构建好的前端和后端镜像（同步主分支最新版本），可以跳过本地构建步骤，实现快速部署：
 
@@ -285,14 +304,14 @@ docker compose up -d
 4. **查看日志**
 
 ```bash
-# 查看后端日志（实时查看最后50行）
-sudo docker compose logs -f --tail 50 backend
+# 查看后端日志（最后 200 行）
+docker logs --tail 200 banana-slides-backend
 
-# 查看所有服务日志（后200行）
-sudo docker compose logs -f --tail 200
+# 实时查看后端日志（最后 100 行）
+docker logs -f --tail 100 banana-slides-backend
 
-# 查看前端日志
-sudo docker compose logs -f --tail 50 frontend
+# 查看前端日志（最后 100 行）
+docker logs --tail 100 banana-slides-frontend
 ```
 
 5. **停止服务**
@@ -547,19 +566,6 @@ banana-slides/
 
 <img width="301" alt="image" src="https://github.com/user-attachments/assets/56fb33bb-fab7-4625-a860-ecef09f41817" />
 
-
-
-**常见问题**
-1.  **支持免费层级的 Gemini API Key 吗？**
-    *   免费层级只支持文本生成，不支持图片生成。
-2.  **生成内容时提示 503 错误或 Retry Error**
-    *   可以根据 README 中的命令查看 Docker 内部日志，定位 503 问题的详细报错，一般是模型配置不正确导致。
-3.  **.env 中设置了 API Key 之后，为什么不生效？**
-    1.  运行时编辑.env需要重启 Docker 容器以应用更改。
-    2.  如果曾在网页设置页中设置，会覆盖 `.env` 中参数，可通过“还原默认设置”还原到 `.env`。
-4.  **生成页面文字有乱码**
-    *   可以尝试更高分辨率的输出（openai格式可能不支持调高分辨率）
-    *   确保在页面描述中包含具体要渲染的文字内容
   
 
 ## 🤝 贡献指南
