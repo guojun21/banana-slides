@@ -1,7 +1,7 @@
 """add export_allow_partial to projects table
 
 Revision ID: 012
-Revises: 011
+Revises: 011_add_user_template_thumb
 Create Date: 2025-01-29
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '012'
-down_revision = '011'
+down_revision = '011_add_user_template_thumb'
 branch_labels = None
 depends_on = None
 
