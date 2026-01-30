@@ -24,20 +24,6 @@ settings_bp = Blueprint(
 )
 
 
-def _get_user_token():
-    """
-    从请求头中获取用户 token
-
-    Returns:
-        str: 用户 token，如果不存在则返回 None
-    """
-    token = request.headers.get('X-User-Token')
-    if not token:
-        logger.warning("No X-User-Token header found in request")
-    return token
-
-
-
 @contextmanager
 def temporary_settings_override(settings_override: dict):
     """
@@ -129,25 +115,13 @@ def temporary_settings_override(settings_override: dict):
                 current_app.config.pop(key, None)
 
 
-# Prevent redirect issues when trailing slash is missing
 @settings_bp.route("/", methods=["GET"], strict_slashes=False)
 def get_settings():
     """
-    GET /api/settings - Get application settings for the current user
-    
-    Headers:
-        X-User-Token: 用户唯一标识token（必需）
+    GET /api/settings - Get application settings
     """
     try:
-        user_token = _get_user_token()
-        if not user_token:
-            return bad_request("X-User-Token header is required")
-        
-        settings = Settings.get_settings(user_token)
-        if not settings:
-            # 用户首次访问，会自动创建默认配置
-            settings = Settings.get_settings(user_token)
-        
+        settings = Settings.get_settings()
         return success_response(settings.to_dict())
     except Exception as e:
         logger.error(f"Error getting settings: {str(e)}")
@@ -161,11 +135,8 @@ def get_settings():
 @settings_bp.route("/", methods=["PUT"], strict_slashes=False)
 def update_settings():
     """
-    PUT /api/settings - Update application settings for the current user
+    PUT /api/settings - Update application settings
 
-    Headers:
-        X-User-Token: 用户唯一标识token（必需）
-    
     Request Body:
         {
             "api_base_url": "https://api.example.com",
@@ -175,15 +146,11 @@ def update_settings():
         }
     """
     try:
-        user_token = _get_user_token()
-        if not user_token:
-            return bad_request("X-User-Token header is required")
-        
         data = request.get_json()
         if not data:
             return bad_request("Request body is required")
 
-        settings = Settings.get_settings(user_token)
+        settings = Settings.get_settings()
 
         # Update AI provider format configuration
         if "ai_provider_format" in data:
@@ -303,17 +270,10 @@ def update_settings():
 @settings_bp.route("/reset", methods=["POST"], strict_slashes=False)
 def reset_settings():
     """
-    POST /api/settings/reset - Reset settings to default values for the current user
-    
-    Headers:
-        X-User-Token: 用户唯一标识token（必需）
+    POST /api/settings/reset - Reset settings to default values
     """
     try:
-        user_token = _get_user_token()
-        if not user_token:
-            return bad_request("X-User-Token header is required")
-        
-        settings = Settings.get_settings(user_token)
+        settings = Settings.get_settings()
 
         # Reset to default values from Config / .env
         # Priority logic:
@@ -372,11 +332,8 @@ def reset_settings():
 @settings_bp.route("/verify", methods=["POST"], strict_slashes=False)
 def verify_api_key():
     """
-    POST /api/settings/verify - 验证当前用户的API key是否可用
+    POST /api/settings/verify - 验证API key是否可用
     通过调用一个轻量的gemini-3-flash-preview测试请求（思考budget=0）来判断
-
-    Headers:
-        X-User-Token: 用户唯一标识token（必需）
 
     Returns:
         {
@@ -387,12 +344,8 @@ def verify_api_key():
         }
     """
     try:
-        user_token = _get_user_token()
-        if not user_token:
-            return bad_request("X-User-Token header is required")
-
-        # 获取当前用户的设置
-        settings = Settings.get_settings(user_token)
+        # 获取当前设置
+        settings = Settings.get_settings()
         if not settings:
             return success_response({
                 "available": False,
