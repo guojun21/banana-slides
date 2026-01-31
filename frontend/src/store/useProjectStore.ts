@@ -1,7 +1,14 @@
 import { create } from 'zustand';
-import type { Project, Task } from '@/types';
+import type { Project, Task, Page } from '@/types';
 import * as api from '@/api/endpoints';
 import { debounce, normalizeProject, normalizeErrorMessage } from '@/utils';
+
+/**
+ * 获取页面应该继承的 part 值（从前一页继承）
+ */
+const getInheritedPart = (prevPage: Page | undefined): string | undefined => {
+  return prevPage?.part !== undefined ? prevPage.part : undefined;
+};
 
 interface ProjectState {
   // 状态
@@ -300,8 +307,9 @@ const debouncedUpdatePage = debounce(
     // 使用 reduce 实现链式传播，确保 part 值能正确传递
     const pagesWithUpdatedPart = reorderedPages.reduce((acc: any[], page: any) => {
       const prevPage = acc[acc.length - 1];
-      if (prevPage?.part !== undefined && prevPage.part !== page.part) {
-        acc.push({ ...page, part: prevPage.part });
+      const inheritedPart = getInheritedPart(prevPage);
+      if (inheritedPart !== undefined && inheritedPart !== page.part) {
+        acc.push({ ...page, part: inheritedPart });
       } else {
         acc.push(page);
       }
@@ -344,6 +352,7 @@ const debouncedUpdatePage = debounce(
     try {
       // 获取最后一页的 part 字段，新页面继承该值
       const lastPage = currentProject.pages[currentProject.pages.length - 1];
+      const inheritedPart = getInheritedPart(lastPage);
       const newPage: {
         outline_content: { title: string; points: string[] };
         order_index: number;
@@ -354,8 +363,8 @@ const debouncedUpdatePage = debounce(
       };
 
       // 如果存在前一页且有 part 字段，则继承
-      if (lastPage?.part !== undefined) {
-        newPage.part = lastPage.part;
+      if (inheritedPart !== undefined) {
+        newPage.part = inheritedPart;
       }
 
       const response = await api.addPage(currentProject.id, newPage);
