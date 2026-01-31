@@ -136,9 +136,8 @@ def update_page(project_id, page_id):
         page.updated_at = datetime.utcnow()
 
         # Update project
-        project = Project.query.get(project_id)
-        if project:
-            project.updated_at = datetime.utcnow()
+        if page.project:
+            page.project.updated_at = datetime.utcnow()
 
         db.session.commit()
 
@@ -146,7 +145,8 @@ def update_page(project_id, page_id):
 
     except Exception as e:
         db.session.rollback()
-        return error_response('SERVER_ERROR', str(e), 500)
+        logger.error(f"Failed to update page {page_id}: {e}")
+        return error_response('SERVER_ERROR', 'An internal server error occurred', 500)
 
 
 @page_bp.route('/<project_id>/pages/<page_id>/outline', methods=['PUT'])

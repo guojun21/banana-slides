@@ -297,17 +297,16 @@ const debouncedUpdatePage = debounce(
 
     // 更新每个页面的 part 字段，使其与前一页保持一致
     // 第一页保持原有 part，后续页面继承前一页的 part
-    const pagesWithUpdatedPart = reorderedPages.map((page, index) => {
-      if (index === 0) {
-        return page;
-      }
-      const prevPage = reorderedPages[index - 1];
-      // 如果前一页有 part 且与当前页不同，则更新
+    // 使用 reduce 实现链式传播，确保 part 值能正确传递
+    const pagesWithUpdatedPart = reorderedPages.reduce((acc: any[], page: any) => {
+      const prevPage = acc[acc.length - 1];
       if (prevPage?.part !== undefined && prevPage.part !== page.part) {
-        return { ...page, part: prevPage.part };
+        acc.push({ ...page, part: prevPage.part });
+      } else {
+        acc.push(page);
       }
-      return page;
-    });
+      return acc;
+    }, []);
 
     set({
       currentProject: {
@@ -355,7 +354,7 @@ const debouncedUpdatePage = debounce(
       };
 
       // 如果存在前一页且有 part 字段，则继承
-      if (lastPage?.part) {
+      if (lastPage?.part !== undefined) {
         newPage.part = lastPage.part;
       }
 
