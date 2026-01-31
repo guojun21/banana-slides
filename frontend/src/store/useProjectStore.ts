@@ -1,14 +1,7 @@
 import { create } from 'zustand';
-import type { Project, Task, Page } from '@/types';
+import type { Project, Task } from '@/types';
 import * as api from '@/api/endpoints';
 import { debounce, normalizeProject, normalizeErrorMessage } from '@/utils';
-
-/**
- * 获取页面应该继承的 part 值（从前一页继承）
- */
-const getInheritedPart = (prevPage: Page | undefined): string | undefined => {
-  return prevPage?.part !== undefined ? prevPage.part : undefined;
-};
 
 interface ProjectState {
   // 状态
@@ -297,56 +290,20 @@ const debouncedUpdatePage = debounce(
     const { currentProject } = get();
     if (!currentProject) return;
 
-    // 找出被移动的页面：比较新旧顺序，找出位置发生变化的页面
-    const oldOrder = currentProject.pages.map((p) => p.id);
-
     // 乐观更新
     const reorderedPages = newOrder
       .map((id) => currentProject.pages.find((p) => p.id === id))
       .filter(Boolean) as any[];
 
-    // 只更新被移动页面的 part 字段（位置发生变化的页面）
-    // 被移动的页面继承其新位置前一页的 part
-    const pagesWithUpdatedPart = reorderedPages.map((page: any, index: number) => {
-      const oldIndex = oldOrder.indexOf(page.id);
-      // 如果页面位置没变，保持原样
-      if (oldIndex === index) {
-        return page;
-      }
-      // 页面位置变了，继承新位置前一页的 part
-      if (index === 0) {
-        // 移动到第一位，保持原有 part
-        return page;
-      }
-      const prevPage = reorderedPages[index - 1];
-      const inheritedPart = getInheritedPart(prevPage);
-      if (inheritedPart !== undefined) {
-        return { ...page, part: inheritedPart };
-      }
-      return page;
-    });
-
     set({
       currentProject: {
         ...currentProject,
-        pages: pagesWithUpdatedPart,
+        pages: reorderedPages,
       },
     });
 
     try {
       await api.updatePagesOrder(currentProject.id, newOrder);
-
-      // 更新被移动页面的 part 字段
-      const updatePromises = pagesWithUpdatedPart
-        .filter((page, index) => {
-          const originalPage = currentProject.pages.find((p) => p.id === page.id);
-          return originalPage && page.part !== originalPage.part && page.id;
-        })
-        .map((page) => api.updatePage(currentProject.id, page.id!, { part: page.part }));
-
-      if (updatePromises.length > 0) {
-        await Promise.all(updatePromises);
-      }
     } catch (error: any) {
       set({ error: error.message || '更新顺序失败' });
       // 失败后重新同步
@@ -360,22 +317,10 @@ const debouncedUpdatePage = debounce(
     if (!currentProject) return;
 
     try {
-      // 获取最后一页的 part 字段，新页面继承该值
-      const lastPage = currentProject.pages[currentProject.pages.length - 1];
-      const inheritedPart = getInheritedPart(lastPage);
-      const newPage: {
-        outline_content: { title: string; points: string[] };
-        order_index: number;
-        part?: string;
-      } = {
+      const newPage = {
         outline_content: { title: '新页面', points: [] },
         order_index: currentProject.pages.length,
       };
-
-      // 如果存在前一页且有 part 字段，则继承
-      if (inheritedPart !== undefined) {
-        newPage.part = inheritedPart;
-      }
 
       const response = await api.addPage(currentProject.id, newPage);
       if (response.data) {
