@@ -19,29 +19,30 @@ def load_user_settings():
     """
     # 从请求头获取用户 token
     user_token = request.headers.get('X-User-Token')
-    
+
     if user_token:
         try:
             # 获取用户的配置
             settings = Settings.get_settings(user_token)
             g.user_settings = settings
-            
+
             # 临时将用户配置应用到 app.config（仅在请求上下文中有效）
             # 这样 AI 服务就会使用用户的配置
             if settings:
                 if settings.ai_provider_format:
                     g.original_ai_provider_format = current_app.config.get('AI_PROVIDER_FORMAT')
                     current_app.config['AI_PROVIDER_FORMAT'] = settings.ai_provider_format
-                
+
                 if settings.api_base_url is not None:
                     g.original_api_base = current_app.config.get('GOOGLE_API_BASE')
                     current_app.config['GOOGLE_API_BASE'] = settings.api_base_url
                     current_app.config['OPENAI_API_BASE'] = settings.api_base_url
-                
+
                 if settings.api_key is not None:
                     g.original_api_key = current_app.config.get('GOOGLE_API_KEY')
                     current_app.config['GOOGLE_API_KEY'] = settings.api_key
                     current_app.config['OPENAI_API_KEY'] = settings.api_key
+                    logger.info(f"[Middleware] Applied user API key for token: {user_token[:8]}... (key length: {len(settings.api_key) if settings.api_key else 0})")
                 
                 # 应用其他用户特定配置
                 if settings.text_model:
