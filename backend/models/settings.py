@@ -70,29 +70,21 @@ class Settings(db.Model):
     def get_settings(user_token: str = None):
         """
         Get or create settings for a specific user.
-
+        
         Args:
             user_token: 用户唯一标识token。如果为None，则尝试获取第一个（兼容旧逻辑）
-
+        
         Returns:
             Settings instance for the user
-
-        Note:
-            对于单用户自部署场景，如果找不到指定 user_token 的记录，
-            会回退到使用第一条记录（通常是 default-user），而不是创建新记录。
-            这样可以确保用户在设置页面的修改能被正确使用。
         """
         if user_token:
             settings = Settings.query.filter_by(user_token=user_token).first()
-            if not settings:
-                # 回退到第一条记录（单用户兼容模式）
-                settings = Settings.query.first()
         else:
             # 兼容模式：如果没有提供token，返回第一个（通常是default-user）
             settings = Settings.query.first()
-
-        if not settings:
-            # 数据库中完全没有记录，创建默认配置
+        
+        if not settings and user_token:
+            # 用户首次访问，创建默认配置
             from config import Config
 
             # 根据 AI_PROVIDER_FORMAT 选择默认 Provider 的 env 配置
@@ -105,7 +97,7 @@ class Settings(db.Model):
                 default_api_key = Config.GOOGLE_API_KEY or None
 
             settings = Settings(
-                user_token=user_token or 'default-user',
+                user_token=user_token,
                 ai_provider_format=Config.AI_PROVIDER_FORMAT,
                 api_base_url=default_api_base,
                 api_key=default_api_key,
@@ -123,7 +115,7 @@ class Settings(db.Model):
             )
             db.session.add(settings)
             db.session.commit()
-
+        
         return settings
 
     def __repr__(self):
