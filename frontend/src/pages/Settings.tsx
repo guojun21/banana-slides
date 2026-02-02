@@ -643,6 +643,24 @@ export const Settings: React.FC = () => {
                     </div>
                   </>
                 )}
+                {section.title === 'MinerU 配置' && (
+                  <>
+                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-gray-700">
+                        请前往{' '}
+                        <a
+                          href="https://mineru.net"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 underline font-medium"
+                        >
+                          MinerU 官网
+                        </a>
+                        {' '}注册并获取 Token，用于解析上传的参考文件
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           ))}
