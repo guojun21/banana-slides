@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, CheckCircle, Brain } from 'lucide-react';
+import { Home, Key, Image, Zap, Save, RotateCcw, Globe, FileText, Brain } from 'lucide-react';
 import { Button, Input, Card, Loading, useToast, useConfirm } from '@/components/shared';
 import * as api from '@/api/endpoints';
 import type { OutputLanguage } from '@/api/endpoints';
@@ -39,8 +39,6 @@ interface ServiceTestState {
 
 // 初始表单数据
 const initialFormData = {
-  ai_provider_format: 'gemini' as 'openai' | 'gemini',
-  api_base_url: '',
   api_key: '',
   text_model: '',
   image_model: '',
@@ -67,27 +65,10 @@ const settingsSections: SectionConfig[] = [
     icon: <Key size={20} />,
     fields: [
       {
-        key: 'ai_provider_format',
-        label: 'AI 提供商格式',
-        type: 'buttons',
-        description: '选择 API 请求格式，影响后端如何构造和发送请求。保存设置后生效。',
-        options: [
-          { value: 'openai', label: 'OpenAI 格式' },
-          { value: 'gemini', label: 'Gemini 格式' },
-        ],
-      },
-      {
-        key: 'api_base_url',
-        label: 'API Base URL',
-        type: 'text',
-        placeholder: 'https://api.example.com',
-        description: '设置大模型提供商 API 的基础 URL',
-      },
-      {
         key: 'api_key',
         label: 'API Key',
         type: 'password',
-        placeholder: '输入新的 API Key',
+        placeholder: '输入 AIhubmix API Key',
         sensitiveField: true,
         lengthKey: 'api_key_length',
         description: '留空则保持当前设置不变，输入新值则更新',
@@ -260,7 +241,6 @@ export const Settings: React.FC = () => {
   const [settings, setSettings] = useState<SettingsType | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
   const [formData, setFormData] = useState(initialFormData);
   const [serviceTestStates, setServiceTestStates] = useState<Record<string, ServiceTestState>>({});
 
@@ -275,8 +255,6 @@ export const Settings: React.FC = () => {
       if (response.data) {
         setSettings(response.data);
         setFormData({
-          ai_provider_format: response.data.ai_provider_format || 'gemini',
-          api_base_url: response.data.api_base_url || '',
           api_key: '',
           image_resolution: response.data.image_resolution || '2K',
           image_aspect_ratio: response.data.image_aspect_ratio || '16:9',
@@ -344,34 +322,6 @@ export const Settings: React.FC = () => {
     }
   };
 
-  const handleVerify = async () => {
-    setIsVerifying(true);
-    try {
-      const response = await api.verifyApiKey();
-      if (response.data) {
-        if (response.data.available) {
-          show({ 
-            message: '✓ API 配置正常，连接成功！', 
-            type: 'success' 
-          });
-        } else {
-          show({ 
-            message: response.data.message || 'API 配置不可用', 
-            type: 'error' 
-          });
-        }
-      }
-    } catch (error: any) {
-      console.error('验证 API 配置失败:', error);
-      show({
-        message: '验证失败: ' + (error?.response?.data?.error?.message || error?.message || '未知错误'),
-        type: 'error'
-      });
-    } finally {
-      setIsVerifying(false);
-    }
-  };
-
   const handleReset = () => {
     confirm(
       '将把大模型、图像生成和并发等所有配置恢复为环境默认值，已保存的自定义设置将丢失，确定继续吗？',
@@ -382,8 +332,6 @@ export const Settings: React.FC = () => {
           if (response.data) {
             setSettings(response.data);
             setFormData({
-              ai_provider_format: response.data.ai_provider_format || 'gemini',
-              api_base_url: response.data.api_base_url || '',
               api_key: '',
               image_resolution: response.data.image_resolution || '2K',
               image_aspect_ratio: response.data.image_aspect_ratio || '16:9',
@@ -442,8 +390,6 @@ export const Settings: React.FC = () => {
 
       // 只传递用户已填写的非空值
       if (formData.api_key) testSettings.api_key = formData.api_key;
-      if (formData.api_base_url) testSettings.api_base_url = formData.api_base_url;
-      if (formData.ai_provider_format) testSettings.ai_provider_format = formData.ai_provider_format;
       if (formData.text_model) testSettings.text_model = formData.text_model;
       if (formData.image_model) testSettings.image_model = formData.image_model;
       if (formData.image_caption_model) testSettings.image_caption_model = formData.image_caption_model;
@@ -665,30 +611,18 @@ export const Settings: React.FC = () => {
                   <>
                     <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                       <p className="text-sm text-gray-700">
-                        API 密匙获取可前往{' '}
+                        请前往{' '}
                         <a
                           href="https://aihubmix.com/?aff=17EC"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-blue-600 hover:text-blue-800 underline font-medium"
                         >
-                          AIHubmix
+                          AIhubmix
                         </a>
-                        , 减小迁移成本(为了安全，强烈建议您限制密匙额度)
+                        {' '}获取 API 密钥（为了安全，强烈建议您限制密钥额度）
                       </p>
                     </div>
-                    {/* <div className="mt-3">
-                      <Button
-                        variant="secondary"
-                        icon={<CheckCircle size={18} />}
-                        onClick={handleVerify}
-                        loading={isVerifying}
-                        disabled={isVerifying || isSaving}
-                        className="w-full sm:w-auto"
-                      >
-                        {isVerifying ? '验证中...' : '测试 API 连接'}
-                      </Button>
-                    </div> */}
                   </>
                 )}
               </div>
