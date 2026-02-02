@@ -625,6 +625,24 @@ export const Settings: React.FC = () => {
                     </div>
                   </>
                 )}
+                {section.title === '百度 OCR 配置' && (
+                  <>
+                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-sm text-gray-700">
+                        请前往{' '}
+                        <a
+                          href="https://console.bce.baidu.com/iam/#/iam/apikey/list"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 underline font-medium"
+                        >
+                          百度智能云平台
+                        </a>
+                        {' '}申请 API Key（有充足的免费使用额度）
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           ))}
