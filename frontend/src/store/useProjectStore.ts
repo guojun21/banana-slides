@@ -259,10 +259,11 @@ const debouncedUpdatePage = debounce(
       }
       
       // 如果项目不存在，清除localStorage并重置当前项目
+      // 不显示错误toast，因为这通常是自动同步时发现的过期项目ID
       if (shouldClearStorage) {
         console.warn('[syncProject] 项目不存在，清除localStorage');
         localStorage.removeItem('currentProjectId');
-        set({ currentProject: null, error: normalizeErrorMessage(errorMessage) });
+        set({ currentProject: null });
       } else {
         set({ error: normalizeErrorMessage(errorMessage) });
       }
@@ -498,7 +499,12 @@ const debouncedUpdatePage = debounce(
       console.log('[生成大纲] 刷新后的项目:', updatedProject?.pages.length, '个页面');
     } catch (error: any) {
       console.error('[生成大纲] 错误:', error);
-      set({ error: error.message || '生成大纲失败' });
+      const message =
+        error.response?.data?.error?.message ||
+        error.response?.data?.message ||
+        error.message ||
+        '生成大纲失败';
+      set({ error: normalizeErrorMessage(message) });
       throw error;
     } finally {
       set({ isGlobalLoading: false });
