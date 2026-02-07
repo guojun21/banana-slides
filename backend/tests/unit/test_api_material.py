@@ -21,10 +21,10 @@ def _create_test_image():
 class TestMaterialUpload:
     """Material upload endpoint tests"""
 
-    def test_upload_material_without_caption(self, authenticated_client):
+    def test_upload_material_without_caption(self, client):
         """Upload without generate_caption param should not include caption in response"""
         img_bytes = _create_test_image()
-        response = authenticated_client.post(
+        response = client.post(
             '/api/materials/upload',
             data={'file': (img_bytes, 'test.png')},
             content_type='multipart/form-data'
@@ -34,11 +34,11 @@ class TestMaterialUpload:
         assert 'caption' not in data['data']
 
     @patch('controllers.material_controller._generate_image_caption')
-    def test_upload_material_with_caption(self, mock_caption, authenticated_client):
+    def test_upload_material_with_caption(self, mock_caption, client):
         """Upload with generate_caption=true should include AI caption"""
         mock_caption.return_value = '一张红色方块图片'
         img_bytes = _create_test_image()
-        response = authenticated_client.post(
+        response = client.post(
             '/api/materials/upload?generate_caption=true',
             data={'file': (img_bytes, 'test.png')},
             content_type='multipart/form-data'
@@ -49,11 +49,11 @@ class TestMaterialUpload:
         mock_caption.assert_called_once()
 
     @patch('controllers.material_controller._generate_image_caption')
-    def test_upload_material_caption_failure_still_succeeds(self, mock_caption, authenticated_client):
+    def test_upload_material_caption_failure_still_succeeds(self, mock_caption, client):
         """Caption failure should return empty string, upload still succeeds"""
         mock_caption.return_value = ''
         img_bytes = _create_test_image()
-        response = authenticated_client.post(
+        response = client.post(
             '/api/materials/upload?generate_caption=true',
             data={'file': (img_bytes, 'test.png')},
             content_type='multipart/form-data'
@@ -63,10 +63,10 @@ class TestMaterialUpload:
         assert 'url' in data['data']
 
     @patch('controllers.material_controller._generate_image_caption')
-    def test_upload_material_caption_false_param(self, mock_caption, authenticated_client):
+    def test_upload_material_caption_false_param(self, mock_caption, client):
         """generate_caption=false should not trigger caption generation"""
         img_bytes = _create_test_image()
-        response = authenticated_client.post(
+        response = client.post(
             '/api/materials/upload?generate_caption=false',
             data={'file': (img_bytes, 'test.png')},
             content_type='multipart/form-data'
@@ -75,18 +75,18 @@ class TestMaterialUpload:
         assert 'caption' not in data['data']
         mock_caption.assert_not_called()
 
-    def test_upload_material_invalid_file_type(self, authenticated_client):
+    def test_upload_material_invalid_file_type(self, client):
         """Unsupported file type should return 400"""
-        response = authenticated_client.post(
+        response = client.post(
             '/api/materials/upload',
             data={'file': (io.BytesIO(b'fake data'), 'test.txt')},
             content_type='multipart/form-data'
         )
         assert response.status_code == 400
 
-    def test_upload_material_no_file(self, authenticated_client):
+    def test_upload_material_no_file(self, client):
         """No file should return 400"""
-        response = authenticated_client.post(
+        response = client.post(
             '/api/materials/upload',
             content_type='multipart/form-data'
         )
