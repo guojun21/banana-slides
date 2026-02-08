@@ -13,6 +13,38 @@ vi.mock('@/api/endpoints', () => ({
   uploadMaterial: (...args: any[]) => mockUploadMaterial(...args),
 }))
 
+// Mock MarkdownTextarea as a plain textarea so getByDisplayValue works
+vi.mock('@/components/shared/MarkdownTextarea', () => {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const React = require('react')
+  return {
+    MarkdownTextarea: React.forwardRef(
+      ({ value, onChange, onPaste, placeholder, label }: any, ref: any) => {
+        const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+        React.useImperativeHandle(ref, () => ({
+          insertAtCursor: (text: string) => {
+            // Simulate inserting text at end
+            onChange(value + text)
+          },
+          focus: () => textareaRef.current?.focus(),
+        }))
+        return (
+          <div>
+            {label && <label>{label}</label>}
+            <textarea
+              ref={textareaRef}
+              value={value}
+              onChange={(e: any) => onChange(e.target.value)}
+              onPaste={onPaste}
+              placeholder={placeholder}
+            />
+          </div>
+        )
+      }
+    ),
+  }
+})
+
 // Mock useT hook to return the key as-is for testing
 vi.mock('@/hooks/useT', () => ({
   useT: () => (key: string, params?: Record<string, any>) => {
@@ -32,6 +64,12 @@ vi.mock('@/hooks/useGeneratingState', () => ({
   useDescriptionGeneratingState: (isGenerating: boolean) => isGenerating,
 }))
 
+// jsdom doesn't have URL.createObjectURL
+if (typeof URL.createObjectURL === 'undefined') {
+  URL.createObjectURL = vi.fn(() => 'blob:mock-url')
+  URL.revokeObjectURL = vi.fn()
+}
+
 describe('DescriptionCard', () => {
   const mockPage: Page = {
     id: 'page-1',
@@ -46,6 +84,7 @@ describe('DescriptionCard', () => {
     page: mockPage,
     index: 0,
     projectId: 'proj-1',
+    showToast: vi.fn(),
     onUpdate: vi.fn(),
     onRegenerate: vi.fn(),
   }
@@ -126,7 +165,7 @@ describe('DescriptionCard', () => {
     // The textarea value should contain the markdown image link after state update
     await waitFor(() => {
       const updatedTextarea = screen.getByRole('textbox') as HTMLTextAreaElement
-      expect(updatedTextarea.value).toContain('![image](https://example.com/uploaded-image.png)')
+      expect(updatedTextarea.value).toContain('![screenshot](https://example.com/uploaded-image.png)')
     })
   })
 
