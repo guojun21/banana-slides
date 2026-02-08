@@ -142,17 +142,14 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // ====================================
     console.log('⏳ Step 8: Waiting for descriptions to generate (may take 2-5 minutes)...')
     
-    // Smart wait: Use expect().toPass() for retry polling
+    // Smart wait: The "生成图片" button is disabled until ALL pages have description_content.
+    // Wait for it to become enabled as the definitive signal that all descriptions are done.
+    const generateImagesBtnForWait = page.locator('button:has-text("生成图片")').first()
     await expect(async () => {
-      const completedIndicators = page.locator('[data-status="descriptions-generated"], .description-complete, button:has-text("重新生成"):not([disabled])')
-      const count = await completedIndicators.count()
-      if (count === 0) {
-        throw new Error('Descriptions not yet generated')
-      }
-      expect(count).toBeGreaterThan(0)
+      await expect(generateImagesBtnForWait).toBeEnabled()
     }).toPass({ timeout: 300000, intervals: [3000, 5000, 10000] })
-    
-    console.log('✓ All descriptions generated\n')
+
+    console.log('✓ All descriptions generated (生成图片 button enabled)\n')
     await page.screenshot({ path: 'test-results/e2e-descriptions-generated.png' })
     
     // ====================================
@@ -203,11 +200,12 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
         console.log('  Waiting for generation state...')
       })
       
-      // Wait for regeneration to complete (shorter timeout since it's just one card)
-      await page.waitForSelector(
-        'button:has-text("重新生成"):not([disabled])',
-        { timeout: 120000 }
-      )
+      // Wait for regeneration to complete - ensure no cards are still generating
+      // (can't just check for any "重新生成" button as other cards already have one)
+      await expect(async () => {
+        const generatingButtons = await page.locator('button:has-text("生成中...")').count()
+        expect(generatingButtons).toBe(0)
+      }).toPass({ timeout: 120000, intervals: [2000, 5000, 10000] })
       
       console.log('✓ Single card retry completed successfully\n')
       await page.screenshot({ path: 'test-results/e2e-single-card-retry.png' })
@@ -264,8 +262,8 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
 
     // Wait for button to be enabled (it's disabled until all descriptions are generated)
     await generateImagesNavBtn.waitFor({ state: 'visible', timeout: 10000 })
-    // Increase timeout to account for React re-rendering after single card retry
-    await expect(generateImagesNavBtn).toBeEnabled({ timeout: 10000 })
+    // Allow enough time for the single card retry from Step 9 to complete
+    await expect(generateImagesNavBtn).toBeEnabled({ timeout: 30000 })
     
     // Ensure button is in viewport
     await generateImagesNavBtn.scrollIntoViewIfNeeded()
