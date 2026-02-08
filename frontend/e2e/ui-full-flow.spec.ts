@@ -55,16 +55,17 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
       // If click fails, the tab might already be selected, which is fine
     })
     
-    // Wait for form to appear
-    await page.waitForSelector('textarea, input[type="text"]', { timeout: 10000 })
+    // Wait for form to appear (MarkdownTextarea uses contentEditable div with role="textbox")
+    await page.waitForSelector('[role="textbox"], textarea, input[type="text"]', { timeout: 10000 })
     console.log('✓ Create form displayed\n')
-    
+
     // ====================================
     // Step 3: Enter idea and click "Next"
     // ====================================
     console.log('✍️  Step 3: Entering idea content...')
-    const ideaInput = page.locator('textarea, input[type="text"]').first()
-    await ideaInput.fill('创建一份关于人工智能基础的简短PPT，包含3页：什么是AI、AI的应用、AI的未来')
+    const ideaInput = page.locator('[role="textbox"], textarea, input[type="text"]').first()
+    await ideaInput.click()
+    await ideaInput.pressSequentially('创建一份关于人工智能基础的简短PPT，包含3页：什么是AI、AI的应用、AI的未来')
     
     console.log('🚀 Clicking "Next" button...')
     await page.click('button:has-text("下一步")')
@@ -678,12 +679,13 @@ test.describe('UI E2E - Simplified (skip long waits)', () => {
     })
     console.log('✓ Entered create page')
     
-    // Wait for textarea to be visible
-    await page.waitForSelector('textarea', { timeout: 10000 })
-    
+    // Wait for textarea to be visible (MarkdownTextarea uses contentEditable div with role="textbox")
+    await page.waitForSelector('[role="textbox"], textarea', { timeout: 10000 })
+
     // Enter content
-    const ideaInput = page.locator('textarea').first()
-    await ideaInput.fill('E2E test project')
+    const ideaInput = page.locator('[role="textbox"], textarea').first()
+    await ideaInput.click()
+    await ideaInput.pressSequentially('E2E test project')
     console.log('✓ Entered content')
     
     // Click generate
