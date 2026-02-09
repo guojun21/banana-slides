@@ -5,11 +5,13 @@ No need for Celery or Redis, uses in-memory task tracking
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Callable, List, Dict, Any
+from typing import Callable, List, Dict, Any, Optional
 from datetime import datetime
 from sqlalchemy import func
+from PIL import Image
 from models import db, Task, Page, Material, PageImageVersion
 from utils import get_filtered_pages
+from utils.image_utils import check_image_resolution
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -313,7 +315,11 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             
             # Get pages for this project (filtered by page_ids if provided)
             pages = get_filtered_pages(project_id, page_ids)
-            pages_data = ai_service.flatten_outline(outline)
+            all_pages_data = ai_service.flatten_outline(outline)
+
+            # Build mapping from order_index to page_data so filtered pages
+            # get matched to the correct outline entry (not just first N)
+            pages_data_by_index = {i: pd for i, pd in enumerate(all_pages_data)}
             
             # 注意：不在任务开始时获取模板路径，而是在每个子线程中动态获取
             # 这样可以确保即使用户在上传新模板后立即生成，也能使用最新模板
@@ -329,6 +335,7 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             # Generate images in parallel
             completed = 0
             failed = 0
+            resolution_mismatched = 0  # Count of resolution mismatches
             
             def generate_single_image(page_id, page_data, page_index):
                 """
@@ -406,31 +413,42 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                         if not image:
                             raise ValueError("Failed to generate image")
                         
+                        # Check resolution for all providers
+                        actual_res, is_match = check_image_resolution(image, resolution)
+                        if not is_match:
+                            logger.warning(f"Resolution mismatch for page {page_index}: requested {resolution}, got {actual_res}")
+                        
                         # 优化：直接在子线程中计算版本号并保存到最终位置
                         # 每个页面独立，使用数据库事务保证版本号原子性，避免临时文件
                         image_path, next_version = save_image_with_version(
                             image, project_id, page_id, file_service, page_obj=page_obj
                         )
                         
-                        return (page_id, image_path, None)
+                        return (page_id, image_path, None, not is_match)
                         
                     except Exception as e:
                         import traceback
                         error_detail = traceback.format_exc()
                         logger.error(f"Failed to generate image for page {page_id}: {error_detail}")
-                        return (page_id, None, str(e))
+                        return (page_id, None, str(e), None)
             
             # Use ThreadPoolExecutor for parallel generation
             # 关键：提前提取 page.id，不要传递 ORM 对象到子线程
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = [
-                    executor.submit(generate_single_image, page.id, page_data, i)
-                    for i, (page, page_data) in enumerate(zip(pages, pages_data), 1)
+                    executor.submit(
+                        generate_single_image, page.id,
+                        pages_data_by_index.get(page.order_index, {}), i
+                    )
+                    for i, page in enumerate(pages, 1)
                 ]
                 
                 # Process results as they complete
                 for future in as_completed(futures):
-                    page_id, image_path, error = future.result()
+                    page_id, image_path, error, is_mismatched = future.result()
+                    
+                    if is_mismatched:
+                        resolution_mismatched += 1
                     
                     db.session.expire_all()
                     
@@ -450,7 +468,13 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
                     # Update task progress
                     task = Task.query.get(task_id)
                     if task:
-                        task.update_progress(completed=completed, failed=failed)
+                        progress = task.get_progress()
+                        progress['completed'] = completed
+                        progress['failed'] = failed
+                        # 第一次检测到不匹配时设置警告
+                        if resolution_mismatched > 0 and 'warning_message' not in progress:
+                            progress['warning_message'] = "图片返回分辨率与设置不符，建议使用gemini格式以避免此问题"
+                        task.set_progress(progress)
                         db.session.commit()
                         logger.info(f"Image Progress: {completed}/{len(pages)} pages completed")
             
@@ -459,6 +483,8 @@ def generate_images_task(task_id: str, project_id: str, ai_service, file_service
             if task:
                 task.status = 'COMPLETED'
                 task.completed_at = datetime.utcnow()
+                if resolution_mismatched > 0:
+                    logger.warning(f"Task {task_id} has {resolution_mismatched} resolution mismatches")
                 db.session.commit()
                 logger.info(f"Task {task_id} COMPLETED - {completed} images generated, {failed} failed")
             

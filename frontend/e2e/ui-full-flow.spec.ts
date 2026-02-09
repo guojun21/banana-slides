@@ -55,16 +55,17 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
       // If click fails, the tab might already be selected, which is fine
     })
     
-    // Wait for form to appear
-    await page.waitForSelector('textarea, input[type="text"]', { timeout: 10000 })
+    // Wait for form to appear (MarkdownTextarea uses contentEditable div with role="textbox")
+    await page.waitForSelector('[role="textbox"], textarea, input[type="text"]', { timeout: 10000 })
     console.log('✓ Create form displayed\n')
-    
+
     // ====================================
     // Step 3: Enter idea and click "Next"
     // ====================================
     console.log('✍️  Step 3: Entering idea content...')
-    const ideaInput = page.locator('textarea, input[type="text"]').first()
-    await ideaInput.fill('创建一份关于人工智能基础的简短PPT，包含3页：什么是AI、AI的应用、AI的未来')
+    const ideaInput = page.locator('[role="textbox"], textarea, input[type="text"]').first()
+    await ideaInput.click()
+    await ideaInput.pressSequentially('创建一份关于人工智能基础的简短PPT，包含3页：什么是AI、AI的应用、AI的未来')
     
     console.log('🚀 Clicking "Next" button...')
     await page.click('button:has-text("下一步")')
@@ -141,17 +142,14 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // ====================================
     console.log('⏳ Step 8: Waiting for descriptions to generate (may take 2-5 minutes)...')
     
-    // Smart wait: Use expect().toPass() for retry polling
+    // Smart wait: The "生成图片" button is disabled until ALL pages have description_content.
+    // Wait for it to become enabled as the definitive signal that all descriptions are done.
+    const generateImagesBtnForWait = page.locator('button:has-text("生成图片")').first()
     await expect(async () => {
-      const completedIndicators = page.locator('[data-status="descriptions-generated"], .description-complete, button:has-text("重新生成"):not([disabled])')
-      const count = await completedIndicators.count()
-      if (count === 0) {
-        throw new Error('Descriptions not yet generated')
-      }
-      expect(count).toBeGreaterThan(0)
+      await expect(generateImagesBtnForWait).toBeEnabled()
     }).toPass({ timeout: 300000, intervals: [3000, 5000, 10000] })
-    
-    console.log('✓ All descriptions generated\n')
+
+    console.log('✓ All descriptions generated (生成图片 button enabled)\n')
     await page.screenshot({ path: 'test-results/e2e-descriptions-generated.png' })
     
     // ====================================
@@ -202,11 +200,12 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
         console.log('  Waiting for generation state...')
       })
       
-      // Wait for regeneration to complete (shorter timeout since it's just one card)
-      await page.waitForSelector(
-        'button:has-text("重新生成"):not([disabled])',
-        { timeout: 120000 }
-      )
+      // Wait for regeneration to complete - ensure no cards are still generating
+      // (can't just check for any "重新生成" button as other cards already have one)
+      await expect(async () => {
+        const generatingButtons = await page.locator('button:has-text("生成中...")').count()
+        expect(generatingButtons).toBe(0)
+      }).toPass({ timeout: 120000, intervals: [2000, 5000, 10000] })
       
       console.log('✓ Single card retry completed successfully\n')
       await page.screenshot({ path: 'test-results/e2e-single-card-retry.png' })
@@ -263,8 +262,8 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
 
     // Wait for button to be enabled (it's disabled until all descriptions are generated)
     await generateImagesNavBtn.waitFor({ state: 'visible', timeout: 10000 })
-    // Increase timeout to account for React re-rendering after single card retry
-    await expect(generateImagesNavBtn).toBeEnabled({ timeout: 10000 })
+    // Allow enough time for the single card retry from Step 9 to complete
+    await expect(generateImagesNavBtn).toBeEnabled({ timeout: 30000 })
     
     // Ensure button is in viewport
     await generateImagesNavBtn.scrollIntoViewIfNeeded()
@@ -447,7 +446,7 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
       // Helper: Selector for failed status badges (red background)
       const failedBadgeSelector = 'span.bg-red-100.text-red-600'
       // Helper: Selector for completed status badges (green background)
-      const completedBadgeSelector = 'span.bg-green-100.text-green-600'
+      const _completedBadgeSelector = 'span.bg-green-100.text-green-600'
       // Helper: Image selector for generated slide images
       // Generated images are stored at: /files/{project_id}/pages/{page_id}_v{version}.png
       // Template images are at: /files/{project_id}/template/template.png (excluded)
@@ -678,12 +677,13 @@ test.describe('UI E2E - Simplified (skip long waits)', () => {
     })
     console.log('✓ Entered create page')
     
-    // Wait for textarea to be visible
-    await page.waitForSelector('textarea', { timeout: 10000 })
-    
+    // Wait for textarea to be visible (MarkdownTextarea uses contentEditable div with role="textbox")
+    await page.waitForSelector('[role="textbox"], textarea', { timeout: 10000 })
+
     // Enter content
-    const ideaInput = page.locator('textarea').first()
-    await ideaInput.fill('E2E test project')
+    const ideaInput = page.locator('[role="textbox"], textarea').first()
+    await ideaInput.click()
+    await ideaInput.pressSequentially('E2E test project')
     console.log('✓ Entered content')
     
     // Click generate

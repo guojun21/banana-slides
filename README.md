@@ -133,6 +133,17 @@
 
 
 ## 🔥 近期更新
+- 【2-9】：
+  * 新功能
+    * 支持在首页、大纲、描述卡片里面粘贴图片并立即识别，并提供更好的交互体验
+    * 大纲章节手动编辑：支持手动调整页面所属章节（part）。
+    * Docker 多架构：镜像支持 amd64 / arm64 构建。
+    * 国际化 + 暗黑模式：新增中英文切换；支持亮色/暗色/跟随系统主题；全组件适配暗黑模式。
+  * 修复与体验优化
+    * 修复导出相关 500、参考文件关联时序、outline/page 数据错位、任务轮询错误项目、描述生成无限轮询、图片预览内存泄漏、批量删除部分失败处理。
+    * 优化格式示例提示、HTTP 错误提示文案、Modal 关闭体验、清理旧项目 localStorage、移除首次创建项目冗余提示。
+    * 若干其他优化和修复
+
 - 【1-29】: 可编辑导出质量保障更新：
   * 新增「返回半成品」选项（默认关闭），关闭时导出过程中任何错误会立即停止并提示具体原因
   * 导出失败时显示详细错误信息和帮助提示，引导用户检查配置
@@ -150,7 +161,7 @@
 - 【12-24】: main分支加入了基于nano-banana-pro背景提取的可编辑pptx导出方法（目前Beta）
 
 
-## **常见问题**
+## **🔧 常见问题**
 
 1. **生成页面文字有乱码，文字不清晰**
     - 可选择更高分辨率的输出（openai 格式可能不支持调高分辨率，建议使用gemini格式）。根据测试，生成页面前将 1k 分辨率调整至 2k 后，文字渲染质量会显著提升。
@@ -218,7 +229,8 @@ cp .env.example .env
 ```
 
 编辑 `.env` 文件，配置必要的环境变量：
-> **项目中大模型接口以AIHubMix平台格式为标准，推荐使用 [AIHubMix](https://aihubmix.com/?aff=17EC) 获取API密钥，减小迁移成本**  
+> **项目中大模型接口以AIHubMix平台格式为标准，推荐使用 [AIHubMix](https://aihubmix.com/?aff=17EC) 获取API密钥，减小迁移成本**<br>
+> **友情提示：谷歌nano banana pro模型接口费用较高，请注意调用成本**
 ```env
 # AI Provider格式配置 (gemini / openai / vertex)
 AI_PROVIDER_FORMAT=gemini
@@ -398,6 +410,7 @@ OPENAI_API_BASE=https://api.openai.com/v1
 # VERTEX_LOCATION=global
 # GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
 
+# 可修改此变量来控制后端服务端口
 BACKEND_PORT=5000
 ...
 ```
@@ -570,7 +583,9 @@ banana-slides/
 
 欢迎提出新功能建议或反馈，本人也会~~佛系~~回答大家问题
 
-<img width="301" alt="image" src="https://github.com/user-attachments/assets/56fb33bb-fab7-4625-a860-ecef09f41817" />
+<img width="301" alt="image" src="https://github.com/user-attachments/assets/c6ab4c96-8e89-4ab3-b347-04d50df4989b" />
+
+
 
   
 
@@ -614,7 +629,7 @@ banana-slides/
 
 
 <h2>🚀 Sponsor / 赞助 </h2>
-
+<br>
 <div align="center">
 <a href="https://aihubmix.com/?aff=17EC">
   <img src="./assets/logo_aihubmix.png" alt="AIHubMix" style="height:48px;">
@@ -625,15 +640,25 @@ banana-slides/
 
 <div align="center">
 
+ <br>
 
- <img width="120" alt="image" src="https://github.com/user-attachments/assets/ac2ad6ec-c1cf-4aaa-859c-756b54168c96" />
+<a href="https://api.chatfire.site/login?inviteCode=A15CD6A0"><img width="200" alt="image" src="https://github.com/user-attachments/assets/d6bd255f-ba2c-4ea3-bd90-fef292fc3397" />
+</a>
+
 
 <details>
   <summary>感谢<a href="https://api.chatfire.site/login?inviteCode=A15CD6A0">AI火宝</a>对本项目的赞助</summary>
   “聚合全球多模型API服务商。更低价格享受安全、稳定且72小时链接全球最新模型的服务。”
 </details>
 
-  
+
+<a href="https://www.rainyun.com/anionex_">
+ <img width="150" alt="image" src="https://github.com/user-attachments/assets/9c1ab6d5-2b67-42ad-b4c4-d1c172a0068a" />
+
+</a>
+
+感谢雨云为本项目赞助云服务器，支持项目开发部署~
+ 
 </div>
 
 
@@ -653,8 +678,8 @@ banana-slides/
 <img width="240" alt="image" src="https://github.com/user-attachments/assets/fd7a286d-711b-445e-aecf-43e3fe356473" />
 
 感谢以下朋友对项目的无偿赞助支持：
-> @雅俗共赏、@曹峥、@以年观日、@John、@胡yun星Ethan, @azazo1、@刘聪NLP、@🍟、@苍何、@biubiu  
-> 如对赞助列表有疑问（如赞赏后没看到您的名字），可<a href="mailto:anionex@qq.com">联系作者</a>
+> @雅俗共赏、@曹峥、@以年观日、@John、@胡yun星Ethan, @azazo1、@刘聪NLP、@🍟、@苍何、@万瑾、@biubiu、@law、@方源、@寒松Falcon
+> 如对赞助列表有疑问，可<a href="mailto:anionex@qq.com">联系作者</a>
  
 ## 📈 项目统计
 
