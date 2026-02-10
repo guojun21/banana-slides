@@ -5,7 +5,7 @@ import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb,
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, listProjects } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, listProjects, verifyApiKey } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useTheme } from '@/hooks/useTheme';
 import { useImagePaste } from '@/hooks/useImagePaste';
@@ -550,7 +550,7 @@ export const Home: React.FC = () => {
     try {
       // 在创建项目前先验证 API key 是否可用（sponsor 分支特性）
       try {
-        const verifyResult = await api.verifyApiKey();
+        const verifyResult = await verifyApiKey();
         if (!verifyResult.data.available) {
           // API key 不可用，提示用户并跳转到设置页
           show({
