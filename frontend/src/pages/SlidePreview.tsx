@@ -1332,7 +1332,7 @@ export const SlidePreview: React.FC = () => {
                 >
                   <span>打赏作者</span>
                   <span>☕</span>
-                  
+
                 </button>
               </div>
             )}
