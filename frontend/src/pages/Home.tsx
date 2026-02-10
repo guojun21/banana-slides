@@ -230,8 +230,13 @@ export const Home: React.FC = () => {
   const { initializeProject, isGlobalLoading } = useProjectStore();
   const { show, ToastContainer } = useToast();
   
-  const [activeTab, setActiveTab] = useState<CreationType>('idea');
-  const [content, setContent] = useState('');
+  const [activeTab, setActiveTab] = useState<CreationType>(() => {
+    const saved = sessionStorage.getItem('home-draft-tab');
+    return (saved as CreationType) || 'idea';
+  });
+  const [content, setContent] = useState(() => {
+    return sessionStorage.getItem('home-draft-content') || '';
+  });
   const [selectedTemplate, setSelectedTemplate] = useState<File | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [selectedPresetTemplateId, setSelectedPresetTemplateId] = useState<string | null>(null);
@@ -552,25 +557,27 @@ export const Home: React.FC = () => {
       try {
         const verifyResult = await verifyApiKey();
         if (!verifyResult.data.available) {
-          // API key 不可用，提示用户并跳转到设置页
+          // API key 不可用，保存草稿后跳转到设置页
+          sessionStorage.setItem('home-draft-content', content);
+          sessionStorage.setItem('home-draft-tab', activeTab);
           show({
             message: verifyResult.data.message || 'API key 不可用，请在设置中配置',
             type: 'error'
           });
-          // 延迟跳转，让用户看到提示信息
           setTimeout(() => {
             navigate('/settings');
           }, 2000);
           return;
         }
       } catch (error: any) {
-        // 验证接口调用失败，可能是网络问题
+        // 验证接口调用失败，保存草稿后跳转到设置页
+        sessionStorage.setItem('home-draft-content', content);
+        sessionStorage.setItem('home-draft-tab', activeTab);
         console.error('验证 API key 失败:', error);
         show({
           message: '无法验证 API 配置，请检查网络连接或在设置中确认配置',
           type: 'error'
         });
-        // 延迟跳转，让用户看到提示信息
         setTimeout(() => {
           navigate('/settings');
         }, 2000);
@@ -642,6 +649,10 @@ export const Home: React.FC = () => {
         console.log('No materials to associate');
       }
       
+      // 项目创建成功，清除草稿
+      sessionStorage.removeItem('home-draft-content');
+      sessionStorage.removeItem('home-draft-tab');
+
       if (activeTab === 'idea' || activeTab === 'outline') {
         navigate(`/project/${projectId}/outline`);
       } else if (activeTab === 'description') {
