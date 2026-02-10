@@ -190,6 +190,8 @@ interface ServiceTestState {
 
 // 初始表单数据
 const initialFormData = {
+  ai_provider_format: 'gemini' as string,
+  api_base_url: '',
   api_key: '',
   text_model: '',
   image_model: '',
@@ -423,6 +425,8 @@ export const Settings: React.FC = () => {
       if (response.data) {
         setSettings(response.data);
         setFormData({
+          ai_provider_format: response.data.ai_provider_format || 'gemini',
+          api_base_url: response.data.api_base_url || '',
           api_key: '',
           image_resolution: response.data.image_resolution || '2K',
           image_aspect_ratio: response.data.image_aspect_ratio || '16:9',
@@ -778,7 +782,7 @@ export const Settings: React.FC = () => {
                 {section.title === t('settings.sections.apiConfig') && (
                   <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
                     <p className="text-sm text-gray-700 dark:text-foreground-secondary">
-                      {t('settings.apiKeyTip', { link: '' }).split('{{link}}')[0]}
+                      {t('settings.apiKeyTip', { link: '{{link}}' }).split('{{link}}')[0]}
                       <a
                         href="https://aihubmix.com/?aff=17EC"
                         target="_blank"
@@ -787,7 +791,7 @@ export const Settings: React.FC = () => {
                       >
                         AIHubmix
                       </a>
-                      {t('settings.apiKeyTip', { link: '' }).split('{{link}}')[1]}
+                      {t('settings.apiKeyTip', { link: '{{link}}' }).split('{{link}}')[1]}
                     </p>
                   </div>
                 )}
