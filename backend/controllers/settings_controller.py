@@ -315,7 +315,7 @@ def reset_settings():
 def verify_api_key():
     """
     POST /api/settings/verify - 验证API key是否可用
-    通过调用一个轻量的gemini-3-flash-preview测试请求（思考budget=0）来判断
+    通过调用用户配置的文本模型发送测试请求（思考budget=0）来判断
 
     Returns:
         {
@@ -326,73 +326,48 @@ def verify_api_key():
         }
     """
     try:
-        # 获取当前设置
-        settings = _get_current_user_settings()
-        if not settings:
+        from services.ai_service_manager import get_ai_service
+
+        # 中间件已将用户设置加载到 g.user_settings，
+        # get_ai_service() 会通过 get_user_config() 读取正确的用户配置
+        try:
+            ai_service = get_ai_service()
+            response = ai_service.text_provider.generate_text("Hello", thinking_budget=0)
+
+            logger.info("API key verification successful")
             return success_response({
-                "available": False,
-                "message": "用户设置未找到"
+                "available": True,
+                "message": "API key 可用"
             })
 
-        # 准备设置覆盖字典
-        settings_override = {}
-        if settings.api_key:
-            settings_override["api_key"] = settings.api_key
-        if settings.api_base_url:
-            settings_override["api_base_url"] = settings.api_base_url
-        if settings.ai_provider_format:
-            settings_override["ai_provider_format"] = settings.ai_provider_format
+        except ValueError as ve:
+            # API key未配置
+            logger.warning(f"API key not configured: {str(ve)}")
+            return success_response({
+                "available": False,
+                "message": "API key 未配置，请在设置中配置 API key 和 API Base URL"
+            })
+        except Exception as e:
+            # API调用失败（可能是key无效、余额不足等）
+            error_msg = str(e)
+            logger.warning(f"API key verification failed: {error_msg}")
 
-        # 使用上下文管理器临时应用用户配置进行验证
-        with temporary_settings_override(settings_override):
-            from services.ai_providers import get_text_provider
-            from utils.config_utils import get_user_config
-            from config import get_config
+            # 根据错误信息判断具体原因
+            if "401" in error_msg or "unauthorized" in error_msg.lower() or "invalid" in error_msg.lower():
+                message = "API key 无效或已过期，请在设置中检查 API key 配置"
+            elif "429" in error_msg or "quota" in error_msg.lower() or "limit" in error_msg.lower():
+                message = "API 调用超限或余额不足，请在设置中检查配置"
+            elif "403" in error_msg or "forbidden" in error_msg.lower():
+                message = "API 访问被拒绝，请在设置中检查 API key 权限"
+            elif "timeout" in error_msg.lower():
+                message = "API 调用超时，请在设置中检查网络连接和 API Base URL"
+            else:
+                message = f"API 调用失败，请在设置中检查配置: {error_msg}"
 
-            # 使用用户配置的文本模型进行验证，确保与实际使用的模型一致
-            config = get_config()
-            verification_model = get_user_config("TEXT_MODEL", config.TEXT_MODEL)
-
-            # 尝试创建provider并调用一个简单的测试请求
-            try:
-                provider = get_text_provider(model=verification_model)
-                # 调用一个简单的测试请求（思考budget=0，最小开销）
-                response = provider.generate_text("Hello", thinking_budget=0)
-
-                logger.info("API key verification successful")
-                return success_response({
-                    "available": True,
-                    "message": "API key 可用"
-                })
-
-            except ValueError as ve:
-                # API key未配置
-                logger.warning(f"API key not configured: {str(ve)}")
-                return success_response({
-                    "available": False,
-                    "message": "API key 未配置，请在设置中配置 API key 和 API Base URL"
-                })
-            except Exception as e:
-                # API调用失败（可能是key无效、余额不足等）
-                error_msg = str(e)
-                logger.warning(f"API key verification failed: {error_msg}")
-
-                # 根据错误信息判断具体原因
-                if "401" in error_msg or "unauthorized" in error_msg.lower() or "invalid" in error_msg.lower():
-                    message = "API key 无效或已过期，请在设置中检查 API key 配置"
-                elif "429" in error_msg or "quota" in error_msg.lower() or "limit" in error_msg.lower():
-                    message = "API 调用超限或余额不足，请在设置中检查配置"
-                elif "403" in error_msg or "forbidden" in error_msg.lower():
-                    message = "API 访问被拒绝，请在设置中检查 API key 权限"
-                elif "timeout" in error_msg.lower():
-                    message = "API 调用超时，请在设置中检查网络连接和 API Base URL"
-                else:
-                    message = f"API 调用失败，请在设置中检查配置: {error_msg}"
-
-                return success_response({
-                    "available": False,
-                    "message": message
-                })
+            return success_response({
+                "available": False,
+                "message": message
+            })
 
     except Exception as e:
         logger.error(f"Error verifying API key: {str(e)}")
