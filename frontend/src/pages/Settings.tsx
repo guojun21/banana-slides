@@ -53,8 +53,9 @@ const settingsI18n = {
       apiKeyHelp: {
         title: "如何获取 API 密钥",
         step1: "前往 {{link}} 注册账号",
-        step2: "点击顶栏「密钥」",
-        step3: "点击「创建 key」生成新的 API Key",
+        step2: "点击顶栏「充值」，根据需要充值一定的额度",
+        step3: "点击顶栏「密钥」",
+        step4: "点击「创建 key」生成新的 API Key",
       },
       serviceTest: {
         title: "服务测试", description: "提前验证关键服务配置是否可用，避免使用期间异常。",
@@ -131,8 +132,9 @@ const settingsI18n = {
       apiKeyHelp: {
         title: "How to get an API key",
         step1: "Register at {{link}}",
-        step2: "Click \"Keys\" in the top navigation bar",
-        step3: "Click \"Create Key\" to generate a new API Key",
+        step2: "Click \"Recharge\" in the top navigation bar and add credits as needed",
+        step3: "Click \"Keys\" in the top navigation bar",
+        step4: "Click \"Create Key\" to generate a new API Key",
       },
       serviceTest: {
         title: "Service Test", description: "Verify key service configurations before use to avoid issues.",
@@ -810,6 +812,7 @@ export const Settings: React.FC = () => {
                       </li>
                       <li>{t('settings.apiKeyHelp.step2')}</li>
                       <li>{t('settings.apiKeyHelp.step3')}</li>
+                      <li>{t('settings.apiKeyHelp.step4')}</li>
                     </ol>
                   </div>
                 )}
