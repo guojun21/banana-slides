@@ -135,7 +135,6 @@ export const OutlineCard: React.FC<OutlineCardProps> = ({
                 {t('outlineCard.coverPage')}
               </span>
             )}
-            )}
             {isEditing ? (
               <input
                 type="text"
