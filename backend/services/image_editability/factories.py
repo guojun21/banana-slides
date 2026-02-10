@@ -545,21 +545,18 @@ class ServiceConfig:
         if extractor_method is not None:
             use_hybrid_extractor = (extractor_method == 'hybrid')
             logger.info(f"extractor_method={extractor_method} -> use_hybrid_extractor={use_hybrid_extractor}")
-        # 自动从 Flask config 获取配置
+        # 自动从用户配置获取 per-user keys，UPLOAD_FOLDER 保持全局
         from flask import current_app, has_app_context
-        
-        if has_app_context() and current_app:
-            if mineru_token is None:
-                mineru_token = current_app.config.get('MINERU_TOKEN')
-            if mineru_api_base is None:
-                mineru_api_base = current_app.config.get('MINERU_API_BASE', 'https://mineru.net')
-            if upload_folder is None:
+        from utils.config_utils import get_user_config
+
+        if mineru_token is None:
+            mineru_token = get_user_config('MINERU_TOKEN')
+        if mineru_api_base is None:
+            mineru_api_base = get_user_config('MINERU_API_BASE', 'https://mineru.net')
+        if upload_folder is None:
+            if has_app_context() and current_app:
                 upload_folder = current_app.config.get('UPLOAD_FOLDER', './uploads')
-        else:
-            # 回退到默认值
-            if mineru_api_base is None:
-                mineru_api_base = 'https://mineru.net'
-            if upload_folder is None:
+            else:
                 upload_folder = './uploads'
         
         # 验证必需配置

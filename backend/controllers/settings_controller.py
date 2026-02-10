@@ -44,10 +44,36 @@ def _get_current_user_settings() -> Settings:
     return Settings.get_settings()
 
 
+class _SettingsOverride:
+    """Temporary settings object for use in temporary_settings_override().
+
+    Mimics Settings model attributes so get_user_config() can read from it.
+    """
+    def __init__(self, **kwargs):
+        self.ai_provider_format = kwargs.get('ai_provider_format')
+        self.api_key = kwargs.get('api_key')
+        self.api_base_url = kwargs.get('api_base_url')
+        self.text_model = kwargs.get('text_model')
+        self.image_model = kwargs.get('image_model')
+        self.image_caption_model = kwargs.get('image_caption_model')
+        self.mineru_api_base = kwargs.get('mineru_api_base')
+        self.mineru_token = kwargs.get('mineru_token')
+        self.baidu_ocr_api_key = kwargs.get('baidu_ocr_api_key')
+        self.image_resolution = kwargs.get('image_resolution')
+        self.image_aspect_ratio = kwargs.get('image_aspect_ratio')
+        self.output_language = kwargs.get('output_language')
+        self.max_description_workers = kwargs.get('max_description_workers')
+        self.max_image_workers = kwargs.get('max_image_workers')
+        self.enable_text_reasoning = kwargs.get('enable_text_reasoning', False)
+        self.text_thinking_budget = kwargs.get('text_thinking_budget', 1024)
+        self.enable_image_reasoning = kwargs.get('enable_image_reasoning', False)
+        self.image_thinking_budget = kwargs.get('image_thinking_budget', 1024)
+
+
 @contextmanager
 def temporary_settings_override(settings_override: dict):
     """
-    临时应用设置覆盖的上下文管理器
+    临时应用设置覆盖的上下文管理器（通过 g.user_settings，线程安全）
 
     使用示例:
         with temporary_settings_override({"api_key": "test-key"}):
@@ -56,83 +82,21 @@ def temporary_settings_override(settings_override: dict):
 
     Args:
         settings_override: 要临时应用的设置字典
-
-    Yields:
-        None
     """
-    original_values = {}
+    had_settings = hasattr(g, 'user_settings')
+    old_settings = getattr(g, 'user_settings', None)
 
     try:
-        # 应用覆盖设置
-        if settings_override.get("api_key"):
-            original_values["GOOGLE_API_KEY"] = current_app.config.get("GOOGLE_API_KEY")
-            original_values["OPENAI_API_KEY"] = current_app.config.get("OPENAI_API_KEY")
-            current_app.config["GOOGLE_API_KEY"] = settings_override["api_key"]
-            current_app.config["OPENAI_API_KEY"] = settings_override["api_key"]
-
-        if settings_override.get("api_base_url"):
-            original_values["GOOGLE_API_BASE"] = current_app.config.get("GOOGLE_API_BASE")
-            original_values["OPENAI_API_BASE"] = current_app.config.get("OPENAI_API_BASE")
-            current_app.config["GOOGLE_API_BASE"] = settings_override["api_base_url"]
-            current_app.config["OPENAI_API_BASE"] = settings_override["api_base_url"]
-
-        if settings_override.get("ai_provider_format"):
-            original_values["AI_PROVIDER_FORMAT"] = current_app.config.get("AI_PROVIDER_FORMAT")
-            current_app.config["AI_PROVIDER_FORMAT"] = settings_override["ai_provider_format"]
-
-        if settings_override.get("text_model"):
-            original_values["TEXT_MODEL"] = current_app.config.get("TEXT_MODEL")
-            current_app.config["TEXT_MODEL"] = settings_override["text_model"]
-
-        if settings_override.get("image_model"):
-            original_values["IMAGE_MODEL"] = current_app.config.get("IMAGE_MODEL")
-            current_app.config["IMAGE_MODEL"] = settings_override["image_model"]
-
-        if settings_override.get("image_caption_model"):
-            original_values["IMAGE_CAPTION_MODEL"] = current_app.config.get("IMAGE_CAPTION_MODEL")
-            current_app.config["IMAGE_CAPTION_MODEL"] = settings_override["image_caption_model"]
-
-        if settings_override.get("mineru_api_base"):
-            original_values["MINERU_API_BASE"] = current_app.config.get("MINERU_API_BASE")
-            current_app.config["MINERU_API_BASE"] = settings_override["mineru_api_base"]
-
-        if settings_override.get("mineru_token"):
-            original_values["MINERU_TOKEN"] = current_app.config.get("MINERU_TOKEN")
-            current_app.config["MINERU_TOKEN"] = settings_override["mineru_token"]
-
-        if settings_override.get("baidu_ocr_api_key"):
-            original_values["BAIDU_OCR_API_KEY"] = current_app.config.get("BAIDU_OCR_API_KEY")
-            current_app.config["BAIDU_OCR_API_KEY"] = settings_override["baidu_ocr_api_key"]
-
-        if settings_override.get("image_resolution"):
-            original_values["DEFAULT_RESOLUTION"] = current_app.config.get("DEFAULT_RESOLUTION")
-            current_app.config["DEFAULT_RESOLUTION"] = settings_override["image_resolution"]
-
-        if "enable_text_reasoning" in settings_override:
-            original_values["ENABLE_TEXT_REASONING"] = current_app.config.get("ENABLE_TEXT_REASONING")
-            current_app.config["ENABLE_TEXT_REASONING"] = settings_override["enable_text_reasoning"]
-
-        if "text_thinking_budget" in settings_override:
-            original_values["TEXT_THINKING_BUDGET"] = current_app.config.get("TEXT_THINKING_BUDGET")
-            current_app.config["TEXT_THINKING_BUDGET"] = settings_override["text_thinking_budget"]
-
-        if "enable_image_reasoning" in settings_override:
-            original_values["ENABLE_IMAGE_REASONING"] = current_app.config.get("ENABLE_IMAGE_REASONING")
-            current_app.config["ENABLE_IMAGE_REASONING"] = settings_override["enable_image_reasoning"]
-
-        if "image_thinking_budget" in settings_override:
-            original_values["IMAGE_THINKING_BUDGET"] = current_app.config.get("IMAGE_THINKING_BUDGET")
-            current_app.config["IMAGE_THINKING_BUDGET"] = settings_override["image_thinking_budget"]
-
+        g.user_settings = _SettingsOverride(**settings_override)
         yield
-
     finally:
-        # 恢复原始配置
-        for key, value in original_values.items():
-            if value is not None:
-                current_app.config[key] = value
-            else:
-                current_app.config.pop(key, None)
+        if had_settings:
+            g.user_settings = old_settings
+        else:
+            try:
+                delattr(g, 'user_settings')
+            except AttributeError:
+                pass
 
 
 @settings_bp.route("/", methods=["GET"], strict_slashes=False)
@@ -269,8 +233,7 @@ def update_settings():
         settings.updated_at = datetime.now(timezone.utc)
         db.session.commit()
 
-        # Sync to app.config
-        _sync_settings_to_config(settings)
+        # Settings saved to DB; get_user_config() will read from g.user_settings on next request
 
         logger.info("Settings updated successfully")
         return success_response(
@@ -331,8 +294,7 @@ def reset_settings():
 
         db.session.commit()
 
-        # Sync to app.config
-        _sync_settings_to_config(settings)
+        # Settings saved to DB; get_user_config() will read from g.user_settings on next request
 
         logger.info("Settings reset to defaults")
         return success_response(
@@ -438,123 +400,6 @@ def verify_api_key():
         )
 
 
-def _sync_settings_to_config(settings: Settings):
-    """Sync settings to Flask app config and clear AI service cache if needed"""
-    # Track if AI-related settings changed
-    ai_config_changed = False
-    
-    # Sync AI provider format (always sync, has default value)
-    if settings.ai_provider_format:
-        old_format = current_app.config.get("AI_PROVIDER_FORMAT")
-        if old_format != settings.ai_provider_format:
-            ai_config_changed = True
-            logger.info(f"AI provider format changed: {old_format} -> {settings.ai_provider_format}")
-        current_app.config["AI_PROVIDER_FORMAT"] = settings.ai_provider_format
-    
-    # Sync API configuration (sync to both GOOGLE_* and OPENAI_* to ensure DB settings override env vars)
-    if settings.api_base_url is not None:
-        old_base = current_app.config.get("GOOGLE_API_BASE")
-        if old_base != settings.api_base_url:
-            ai_config_changed = True
-            logger.info(f"API base URL changed: {old_base} -> {settings.api_base_url}")
-        current_app.config["GOOGLE_API_BASE"] = settings.api_base_url
-        current_app.config["OPENAI_API_BASE"] = settings.api_base_url
-    else:
-        # Remove overrides, fall back to env variables or defaults
-        if "GOOGLE_API_BASE" in current_app.config or "OPENAI_API_BASE" in current_app.config:
-            ai_config_changed = True
-            logger.info("API base URL cleared, falling back to defaults")
-        current_app.config.pop("GOOGLE_API_BASE", None)
-        current_app.config.pop("OPENAI_API_BASE", None)
-
-    if settings.api_key is not None:
-        old_key = current_app.config.get("GOOGLE_API_KEY")
-        # Compare actual values to detect any change (but don't log the keys for security)
-        if old_key != settings.api_key:
-            ai_config_changed = True
-            logger.info("API key updated")
-        current_app.config["GOOGLE_API_KEY"] = settings.api_key
-        current_app.config["OPENAI_API_KEY"] = settings.api_key
-    else:
-        # Remove overrides, fall back to env variables or defaults
-        if "GOOGLE_API_KEY" in current_app.config or "OPENAI_API_KEY" in current_app.config:
-            ai_config_changed = True
-            logger.info("API key cleared, falling back to defaults")
-        current_app.config.pop("GOOGLE_API_KEY", None)
-        current_app.config.pop("OPENAI_API_KEY", None)
-    
-    # Check model changes
-    if settings.text_model is not None:
-        old_model = current_app.config.get("TEXT_MODEL")
-        if old_model != settings.text_model:
-            ai_config_changed = True
-            logger.info(f"Text model changed: {old_model} -> {settings.text_model}")
-        current_app.config["TEXT_MODEL"] = settings.text_model
-    
-    if settings.image_model is not None:
-        old_model = current_app.config.get("IMAGE_MODEL")
-        if old_model != settings.image_model:
-            ai_config_changed = True
-            logger.info(f"Image model changed: {old_model} -> {settings.image_model}")
-        current_app.config["IMAGE_MODEL"] = settings.image_model
-
-    # Sync image generation settings
-    current_app.config["DEFAULT_RESOLUTION"] = settings.image_resolution
-    current_app.config["DEFAULT_ASPECT_RATIO"] = settings.image_aspect_ratio
-
-    # Sync worker settings
-    current_app.config["MAX_DESCRIPTION_WORKERS"] = settings.max_description_workers
-    current_app.config["MAX_IMAGE_WORKERS"] = settings.max_image_workers
-    logger.info(f"Updated worker settings: desc={settings.max_description_workers}, img={settings.max_image_workers}")
-
-    # Sync MinerU settings (optional, fall back to Config defaults if None)
-    if settings.mineru_api_base:
-        current_app.config["MINERU_API_BASE"] = settings.mineru_api_base
-        logger.info(f"Updated MINERU_API_BASE to: {settings.mineru_api_base}")
-    if settings.mineru_token is not None:
-        current_app.config["MINERU_TOKEN"] = settings.mineru_token
-        logger.info("Updated MINERU_TOKEN from settings")
-    if settings.image_caption_model:
-        current_app.config["IMAGE_CAPTION_MODEL"] = settings.image_caption_model
-        logger.info(f"Updated IMAGE_CAPTION_MODEL to: {settings.image_caption_model}")
-    if settings.output_language:
-        current_app.config["OUTPUT_LANGUAGE"] = settings.output_language
-        logger.info(f"Updated OUTPUT_LANGUAGE to: {settings.output_language}")
-    
-    # Sync reasoning mode settings (separate for text and image)
-    # Check if reasoning configuration changed (requires AIService cache clear)
-    old_text_reasoning = current_app.config.get("ENABLE_TEXT_REASONING")
-    old_text_budget = current_app.config.get("TEXT_THINKING_BUDGET")
-    old_image_reasoning = current_app.config.get("ENABLE_IMAGE_REASONING")
-    old_image_budget = current_app.config.get("IMAGE_THINKING_BUDGET")
-    
-    if (old_text_reasoning != settings.enable_text_reasoning or 
-        old_text_budget != settings.text_thinking_budget or
-        old_image_reasoning != settings.enable_image_reasoning or
-        old_image_budget != settings.image_thinking_budget):
-        ai_config_changed = True
-        logger.info(f"Reasoning config changed: text={old_text_reasoning}({old_text_budget})->{settings.enable_text_reasoning}({settings.text_thinking_budget}), image={old_image_reasoning}({old_image_budget})->{settings.enable_image_reasoning}({settings.image_thinking_budget})")
-    
-    current_app.config["ENABLE_TEXT_REASONING"] = settings.enable_text_reasoning
-    current_app.config["TEXT_THINKING_BUDGET"] = settings.text_thinking_budget
-    current_app.config["ENABLE_IMAGE_REASONING"] = settings.enable_image_reasoning
-    current_app.config["IMAGE_THINKING_BUDGET"] = settings.image_thinking_budget
-    
-    # Sync Baidu OCR settings
-    if settings.baidu_ocr_api_key:
-        current_app.config["BAIDU_OCR_API_KEY"] = settings.baidu_ocr_api_key
-        logger.info("Updated BAIDU_OCR_API_KEY from settings")
-    
-    # Clear AI service cache if AI-related configuration changed
-    if ai_config_changed:
-        try:
-            from services.ai_service_manager import clear_ai_service_cache
-            clear_ai_service_cache()
-            logger.warning("AI configuration changed - AIService cache cleared. New providers will be created on next request.")
-        except Exception as e:
-            logger.error(f"Failed to clear AI service cache: {e}")
-
-
 def _get_test_image_path() -> Path:
     test_image = Path(PROJECT_ROOT) / "assets" / "test_img.png"
     if not test_image.exists():
@@ -564,7 +409,8 @@ def _get_test_image_path() -> Path:
 
 def _get_baidu_credentials():
     """获取百度 API 凭证"""
-    api_key = current_app.config.get("BAIDU_OCR_API_KEY") or Config.BAIDU_OCR_API_KEY
+    from utils.config_utils import get_user_config
+    api_key = get_user_config("BAIDU_OCR_API_KEY") or Config.BAIDU_OCR_API_KEY
     if not api_key:
         raise ValueError("未配置 BAIDU_OCR_API_KEY")
     return api_key
@@ -572,15 +418,16 @@ def _get_baidu_credentials():
 
 def _create_file_parser():
     """创建 FileParserService 实例"""
+    from utils.config_utils import get_user_config
     return FileParserService(
-        mineru_token=current_app.config.get("MINERU_TOKEN", ""),
-        mineru_api_base=current_app.config.get("MINERU_API_BASE", ""),
-        google_api_key=current_app.config.get("GOOGLE_API_KEY", ""),
-        google_api_base=current_app.config.get("GOOGLE_API_BASE", ""),
-        openai_api_key=current_app.config.get("OPENAI_API_KEY", ""),
-        openai_api_base=current_app.config.get("OPENAI_API_BASE", ""),
-        image_caption_model=current_app.config.get("IMAGE_CAPTION_MODEL", Config.IMAGE_CAPTION_MODEL),
-        provider_format=current_app.config.get("AI_PROVIDER_FORMAT", "gemini"),
+        mineru_token=get_user_config("MINERU_TOKEN", ""),
+        mineru_api_base=get_user_config("MINERU_API_BASE", ""),
+        google_api_key=get_user_config("GOOGLE_API_KEY", ""),
+        google_api_base=get_user_config("GOOGLE_API_BASE", ""),
+        openai_api_key=get_user_config("OPENAI_API_KEY", ""),
+        openai_api_base=get_user_config("OPENAI_API_BASE", ""),
+        image_caption_model=get_user_config("IMAGE_CAPTION_MODEL", Config.IMAGE_CAPTION_MODEL),
+        provider_format=get_user_config("AI_PROVIDER_FORMAT", "gemini"),
     )
 
 
@@ -689,7 +536,8 @@ def _test_image_model():
 
 def _test_mineru_pdf():
     """测试 MinerU PDF 解析"""
-    mineru_token = current_app.config.get("MINERU_TOKEN", "")
+    from utils.config_utils import get_user_config
+    mineru_token = get_user_config("MINERU_TOKEN", "")
     if not mineru_token:
         raise ValueError("未配置 MINERU_TOKEN")
 

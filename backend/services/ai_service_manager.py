@@ -17,7 +17,7 @@ Usage:
 
 import logging
 from typing import Optional
-from flask import current_app, has_app_context, g
+from flask import g
 from .ai_service import AIService
 from .ai_providers import get_text_provider, get_image_provider, TextProvider, ImageProvider
 
@@ -38,19 +38,16 @@ def get_ai_service(force_new: bool = False) -> AIService:
     Returns:
         AIService instance configured for the current user
     """
-    # Get model names from Flask config (which includes user overrides from middleware)
+    # Get model names with per-user isolation
     from config import get_config
+    from utils.config_utils import get_user_config
     config = get_config()
 
-    if has_app_context() and current_app and hasattr(current_app, "config"):
-        text_model = current_app.config.get("TEXT_MODEL", config.TEXT_MODEL)
-        image_model = current_app.config.get("IMAGE_MODEL", config.IMAGE_MODEL)
-    else:
-        text_model = config.TEXT_MODEL
-        image_model = config.IMAGE_MODEL
+    text_model = get_user_config("TEXT_MODEL", config.TEXT_MODEL)
+    image_model = get_user_config("IMAGE_MODEL", config.IMAGE_MODEL)
 
     # Always create fresh providers to use current user's API key
-    # The middleware has already applied user's settings to current_app.config
+    # Per-user settings are resolved via get_user_config() inside provider factories
     logger.debug(f"Creating AIService with models: text={text_model}, image={image_model}")
 
     text_provider = get_text_provider(model=text_model)

@@ -15,6 +15,7 @@ import threading
 
 from models import db, ReferenceFile, Project
 from utils.response import success_response, error_response, bad_request, not_found
+from utils.config_utils import get_user_config
 from services.file_parser_service import FileParserService
 
 logger = logging.getLogger(__name__)
@@ -344,14 +345,14 @@ def trigger_file_parse(file_id):
 
         # 捕获当前请求上下文中的用户配置
         user_config = {
-            'MINERU_TOKEN': current_app.config.get('MINERU_TOKEN'),
-            'MINERU_API_BASE': current_app.config.get('MINERU_API_BASE'),
-            'GOOGLE_API_KEY': current_app.config.get('GOOGLE_API_KEY', ''),
-            'GOOGLE_API_BASE': current_app.config.get('GOOGLE_API_BASE', ''),
-            'OPENAI_API_KEY': current_app.config.get('OPENAI_API_KEY', ''),
-            'OPENAI_API_BASE': current_app.config.get('OPENAI_API_BASE', ''),
-            'IMAGE_CAPTION_MODEL': current_app.config.get('IMAGE_CAPTION_MODEL'),
-            'AI_PROVIDER_FORMAT': current_app.config.get('AI_PROVIDER_FORMAT', 'gemini')
+            'MINERU_TOKEN': get_user_config('MINERU_TOKEN'),
+            'MINERU_API_BASE': get_user_config('MINERU_API_BASE'),
+            'GOOGLE_API_KEY': get_user_config('GOOGLE_API_KEY', ''),
+            'GOOGLE_API_BASE': get_user_config('GOOGLE_API_BASE', ''),
+            'OPENAI_API_KEY': get_user_config('OPENAI_API_KEY', ''),
+            'OPENAI_API_BASE': get_user_config('OPENAI_API_BASE', ''),
+            'IMAGE_CAPTION_MODEL': get_user_config('IMAGE_CAPTION_MODEL'),
+            'AI_PROVIDER_FORMAT': get_user_config('AI_PROVIDER_FORMAT', 'gemini')
         }
 
         # 启动异步解析，传递用户配置

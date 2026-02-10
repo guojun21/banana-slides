@@ -4,6 +4,7 @@ Material Controller - handles standalone material image generation
 from flask import Blueprint, request, current_app, send_file
 from models import db, Project, Material, Task
 from utils import success_response, error_response, not_found, bad_request
+from utils.config_utils import get_user_config
 from services import FileService
 from services.ai_service_manager import get_ai_service
 from services.task_manager import task_manager, generate_material_image_task
@@ -36,23 +37,23 @@ def _generate_image_caption(filepath: str) -> str:
         image = Image.open(filepath)
         image.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
 
-        output_lang = current_app.config.get('OUTPUT_LANGUAGE', 'zh')
+        output_lang = get_user_config('OUTPUT_LANGUAGE', 'zh')
         if output_lang == 'en':
             prompt = "Please provide a short description of the main content of this image. Return only the description text without any other explanation."
         else:
             prompt = "请用一句简短的中文描述这张图片的主要内容。只返回描述文字，不要其他解释。"
 
-        provider_format = (current_app.config.get('AI_PROVIDER_FORMAT') or 'gemini').lower()
-        caption_model = current_app.config.get('IMAGE_CAPTION_MODEL', 'gemini-3-flash-preview')
+        provider_format = (get_user_config('AI_PROVIDER_FORMAT') or 'gemini').lower()
+        caption_model = get_user_config('IMAGE_CAPTION_MODEL', 'gemini-3-flash-preview')
 
         if provider_format == 'openai':
             from openai import OpenAI
-            api_key = current_app.config.get('OPENAI_API_KEY', '')
+            api_key = get_user_config('OPENAI_API_KEY', '')
             if not api_key:
                 return ""
             client = OpenAI(
                 api_key=api_key,
-                base_url=current_app.config.get('OPENAI_API_BASE') or None
+                base_url=get_user_config('OPENAI_API_BASE') or None
             )
 
             buffered = io.BytesIO()
@@ -79,10 +80,10 @@ def _generate_image_caption(filepath: str) -> str:
             # Gemini (default)
             from google import genai
             from google.genai import types
-            api_key = current_app.config.get('GOOGLE_API_KEY', '')
+            api_key = get_user_config('GOOGLE_API_KEY', '')
             if not api_key:
                 return ""
-            api_base = current_app.config.get('GOOGLE_API_BASE', '')
+            api_base = get_user_config('GOOGLE_API_BASE', '')
             client = genai.Client(
                 http_options=types.HttpOptions(base_url=api_base) if api_base else None,
                 api_key=api_key
@@ -330,8 +331,8 @@ def generate_material_image(project_id):
                 file_service,
                 ref_path_str,
                 additional_ref_images if additional_ref_images else None,
-                current_app.config['DEFAULT_ASPECT_RATIO'],
-                current_app.config['DEFAULT_RESOLUTION'],
+                get_user_config('DEFAULT_ASPECT_RATIO', '16:9'),
+                get_user_config('DEFAULT_RESOLUTION', '2K'),
                 temp_dir_str,
                 app
             )

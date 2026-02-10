@@ -46,58 +46,27 @@ def get_provider_format() -> str:
     Get the configured AI provider format
 
     Priority:
-        1. Flask app.config['AI_PROVIDER_FORMAT'] (from database settings)
-        2. Environment variable AI_PROVIDER_FORMAT
-        3. Default: 'gemini'
+        1. g.user_settings (per-request)
+        2. current_app.config (startup defaults)
+        3. Environment variable AI_PROVIDER_FORMAT
+        4. Default: 'gemini'
 
     Returns:
         "gemini", "openai", or "vertex"
     """
-    # Try to get from Flask app config first (database settings)
-    try:
-        from flask import current_app
-        if current_app and hasattr(current_app, 'config'):
-            config_value = current_app.config.get('AI_PROVIDER_FORMAT')
-            if config_value:
-                return str(config_value).lower()
-    except RuntimeError:
-        # Not in Flask application context
-        pass
-    
-    # Fallback to environment variable
-    return os.getenv('AI_PROVIDER_FORMAT', 'gemini').lower()
+    from utils.config_utils import get_user_config
+    return str(get_user_config('AI_PROVIDER_FORMAT', 'gemini')).lower()
 
 
 def _get_config_value(key: str, default: str = None) -> str:
     """
-    Helper to get config value with priority: app.config > env var > default
+    Helper to get config value with per-user isolation.
+
+    Priority: g.user_settings > current_app.config > env var > default
     """
-    try:
-        from flask import current_app
-        if current_app and hasattr(current_app, 'config'):
-            # Check if key exists in config (even if value is empty string)
-            # This allows database settings to override env vars even with empty values
-            if key in current_app.config:
-                config_value = current_app.config.get(key)
-                # Return the value even if it's empty string (user explicitly set it)
-                if config_value is not None:
-                    logger.info(f"[CONFIG] Using {key} from app.config (user settings)")
-                    return str(config_value)
-            else:
-                logger.debug(f"[CONFIG] Key {key} not found in app.config, checking env var")
-    except RuntimeError as e:
-        # Not in Flask application context, fallback to env var
-        logger.debug(f"[CONFIG] Not in Flask context for {key}: {e}")
-    # Fallback to environment variable or default
-    env_value = os.getenv(key)
-    if env_value is not None:
-        logger.info(f"[CONFIG] Using {key} from environment variable")
-        return env_value
-    if default is not None:
-        logger.debug(f"[CONFIG] Using {key} default: {default}")
-        return default
-    logger.debug(f"[CONFIG] No value found for {key}, returning None")
-    return None
+    from utils.config_utils import get_user_config
+    value = get_user_config(key, default)
+    return str(value) if value is not None else None
 
 
 def _get_provider_config() -> Dict[str, Any]:

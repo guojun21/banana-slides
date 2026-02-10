@@ -78,28 +78,14 @@ class AIService:
         """
         config = get_config()
 
-        # 优先使用 Flask app.config（可由 Settings 覆盖），否则回退到 Config 默认值
-        try:
-            from flask import current_app, has_app_context
-        except ImportError:
-            current_app = None  # type: ignore
-            has_app_context = lambda: False  # type: ignore
+        from utils.config_utils import get_user_config
 
-        if has_app_context() and current_app and hasattr(current_app, "config"):
-            self.text_model = current_app.config.get("TEXT_MODEL", config.TEXT_MODEL)
-            self.image_model = current_app.config.get("IMAGE_MODEL", config.IMAGE_MODEL)
-            # 分离的文本和图像推理配置
-            self.enable_text_reasoning = current_app.config.get("ENABLE_TEXT_REASONING", False)
-            self.text_thinking_budget = current_app.config.get("TEXT_THINKING_BUDGET", 1024)
-            self.enable_image_reasoning = current_app.config.get("ENABLE_IMAGE_REASONING", False)
-            self.image_thinking_budget = current_app.config.get("IMAGE_THINKING_BUDGET", 1024)
-        else:
-            self.text_model = config.TEXT_MODEL
-            self.image_model = config.IMAGE_MODEL
-            self.enable_text_reasoning = False
-            self.text_thinking_budget = 1024
-            self.enable_image_reasoning = False
-            self.image_thinking_budget = 1024
+        self.text_model = get_user_config("TEXT_MODEL", config.TEXT_MODEL)
+        self.image_model = get_user_config("IMAGE_MODEL", config.IMAGE_MODEL)
+        self.enable_text_reasoning = get_user_config("ENABLE_TEXT_REASONING", False)
+        self.text_thinking_budget = get_user_config("TEXT_THINKING_BUDGET", 1024)
+        self.enable_image_reasoning = get_user_config("ENABLE_IMAGE_REASONING", False)
+        self.image_thinking_budget = get_user_config("IMAGE_THINKING_BUDGET", 1024)
         
         # Use provided providers or create from factory based on AI_PROVIDER_FORMAT (from Flask config or env var)
         self.text_provider = text_provider or get_text_provider(model=self.text_model)

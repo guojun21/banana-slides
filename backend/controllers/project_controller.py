@@ -23,6 +23,7 @@ from utils import (
     success_response, error_response, not_found, bad_request,
     parse_page_ids_from_body, get_filtered_pages
 )
+from utils.config_utils import get_user_config
 
 logger = logging.getLogger(__name__)
 
@@ -372,8 +373,8 @@ def generate_outline(project_id):
         
         # Get request data and language parameter
         data = request.get_json() or {}
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
-        
+        language = data.get('language', get_user_config('OUTPUT_LANGUAGE', 'zh'))
+
         # Get reference files content and create project context
         reference_files_content = _get_project_reference_files_content(project_id)
         if reference_files_content:
@@ -382,7 +383,7 @@ def generate_outline(project_id):
                 logger.info(f"  - {rf['filename']}: {len(rf['content'])} characters")
         else:
             logger.info(f"No reference files found for project {project_id}")
-        
+
         # 根据项目类型选择不同的处理方式
         if project.creation_type == 'outline':
             # 从大纲生成：解析用户输入的大纲文本
@@ -487,8 +488,8 @@ def generate_from_description(project_id):
         # Get description text and language
         data = request.get_json() or {}
         description_text = data.get('description_text') or project.description_text
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
-        
+        language = data.get('language', get_user_config('OUTPUT_LANGUAGE', 'zh'))
+
         if not description_text:
             return bad_request("description_text is required")
         
@@ -608,8 +609,8 @@ def generate_descriptions(project_id):
         
         data = request.get_json() or {}
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
-        max_workers = data.get('max_workers', current_app.config.get('MAX_DESCRIPTION_WORKERS', 5))
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        max_workers = data.get('max_workers', get_user_config('MAX_DESCRIPTION_WORKERS', 5))
+        language = data.get('language', get_user_config('OUTPUT_LANGUAGE', 'zh'))
         
         # Create task
         task = Task(
@@ -714,9 +715,9 @@ def generate_images(project_id):
         outline = _reconstruct_outline_from_pages(pages)
         
         # 从配置中读取默认并发数，如果请求中提供了则使用请求的值
-        max_workers = data.get('max_workers', current_app.config.get('MAX_IMAGE_WORKERS', 8))
+        max_workers = data.get('max_workers', get_user_config('MAX_IMAGE_WORKERS', 8))
         use_template = data.get('use_template', True)
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
+        language = data.get('language', get_user_config('OUTPUT_LANGUAGE', 'zh'))
         
         # Create task
         task = Task(
@@ -755,8 +756,8 @@ def generate_images(project_id):
             outline,
             use_template,
             max_workers,
-            current_app.config['DEFAULT_ASPECT_RATIO'],
-            current_app.config['DEFAULT_RESOLUTION'],
+            get_user_config('DEFAULT_ASPECT_RATIO', '16:9'),
+            get_user_config('DEFAULT_RESOLUTION', '2K'),
             app,
             combined_requirements if combined_requirements.strip() else None,
             language,
@@ -851,8 +852,8 @@ def refine_outline(project_id):
         
         # Get previous requirements and language from request
         previous_requirements = data.get('previous_requirements', [])
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
-        
+        language = data.get('language', get_user_config('OUTPUT_LANGUAGE', 'zh'))
+
         # Refine outline
         logger.info(f"开始修改大纲: 项目 {project_id}, 用户要求: {user_requirement}, 历史要求数: {len(previous_requirements)}")
         refined_outline = ai_service.refine_outline(
@@ -1020,8 +1021,8 @@ def refine_descriptions(project_id):
         
         # Get previous requirements and language from request
         previous_requirements = data.get('previous_requirements', [])
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
-        
+        language = data.get('language', get_user_config('OUTPUT_LANGUAGE', 'zh'))
+
         # Refine descriptions
         logger.info(f"开始修改页面描述: 项目 {project_id}, 用户要求: {user_requirement}, 历史要求数: {len(previous_requirements)}")
         refined_descriptions = ai_service.refine_descriptions(

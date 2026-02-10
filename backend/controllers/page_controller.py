@@ -5,6 +5,7 @@ import logging
 from flask import Blueprint, request, current_app
 from models import db, Project, Page, PageImageVersion, Task
 from utils import success_response, error_response, not_found, bad_request
+from utils.config_utils import get_user_config
 from services import FileService, ProjectContext
 from services.ai_service_manager import get_ai_service
 from services.task_manager import task_manager, generate_single_page_image_task, edit_page_image_task
@@ -251,8 +252,8 @@ def generate_page_description(project_id, page_id):
         
         data = request.get_json() or {}
         force_regenerate = data.get('force_regenerate', False)
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
-        
+        language = data.get('language', get_user_config('OUTPUT_LANGUAGE', 'zh'))
+
         # Check if already generated
         if page.get_description_content() and not force_regenerate:
             return bad_request("Description already exists. Set force_regenerate=true to regenerate")
@@ -337,8 +338,8 @@ def generate_page_image(project_id, page_id):
         data = request.get_json() or {}
         use_template = data.get('use_template', True)
         force_regenerate = data.get('force_regenerate', False)
-        language = data.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
-        
+        language = data.get('language', get_user_config('OUTPUT_LANGUAGE', 'zh'))
+
         # Check if already generated
         if page.generated_image_path and not force_regenerate:
             return bad_request("Image already exists. Set force_regenerate=true to regenerate")
@@ -471,20 +472,20 @@ def generate_page_image(project_id, page_id):
             file_service,
             outline,
             use_template,
-            current_app.config['DEFAULT_ASPECT_RATIO'],
-            current_app.config['DEFAULT_RESOLUTION'],
+            get_user_config('DEFAULT_ASPECT_RATIO', '16:9'),
+            get_user_config('DEFAULT_RESOLUTION', '2K'),
             app,
             combined_requirements if combined_requirements.strip() else None,
             language
         )
-        
+
         # Return task_id immediately
         return success_response({
             'task_id': task.id,
             'page_id': page_id,
             'status': 'PENDING'
         }, status_code=202)
-    
+
     except Exception as e:
         db.session.rollback()
         return error_response('AI_SERVICE_ERROR', str(e), 503)
@@ -643,8 +644,8 @@ def edit_page_image(project_id, page_id):
             data['edit_instruction'],
             ai_service,
             file_service,
-            current_app.config['DEFAULT_ASPECT_RATIO'],
-            current_app.config['DEFAULT_RESOLUTION'],
+            get_user_config('DEFAULT_ASPECT_RATIO', '16:9'),
+            get_user_config('DEFAULT_RESOLUTION', '2K'),
             original_description,
             additional_ref_images if additional_ref_images else None,
             str(temp_dir) if temp_dir else None,

@@ -32,19 +32,10 @@ def _get_ai_provider_format(provider_format: str = None) -> str:
     if provider_format:
         return provider_format.lower()
     
-    # Try to get from Flask app config first (database settings)
-    try:
-        from flask import current_app
-        if current_app and hasattr(current_app, 'config'):
-            config_value = current_app.config.get('AI_PROVIDER_FORMAT')
-            if config_value:
-                return str(config_value).lower()
-    except RuntimeError:
-        # Not in Flask application context
-        pass
-    
-    # Fallback to environment variable
-    return os.getenv('AI_PROVIDER_FORMAT', 'gemini').lower()
+    # Use per-user config (g.user_settings → Flask config → env var → default)
+    from utils.config_utils import get_user_config
+    value = get_user_config('AI_PROVIDER_FORMAT', 'gemini')
+    return str(value).lower()
 
 
 class FileParserService:
