@@ -822,8 +822,8 @@ def run_settings_test(test_name: str):
         }
     """
     try:
-        # 从数据库加载已保存的全局设置作为基础
-        global_settings = Settings.get_settings()
+        # 从数据库加载当前用户已保存的设置作为基础
+        global_settings = _get_current_user_settings()
 
         # 构建基础测试设置（使用数据库中已保存的值）
         test_settings = {}
