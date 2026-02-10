@@ -346,9 +346,12 @@ def verify_api_key():
         # 使用上下文管理器临时应用用户配置进行验证
         with temporary_settings_override(settings_override):
             from services.ai_providers import get_text_provider
+            from utils.config_utils import get_user_config
+            from config import get_config
 
-            # 使用 gemini-3-flash-preview 模型进行验证（思考budget=0，最小开销）
-            verification_model = "gemini-3-flash-preview"
+            # 使用用户配置的文本模型进行验证，确保与实际使用的模型一致
+            config = get_config()
+            verification_model = get_user_config("TEXT_MODEL", config.TEXT_MODEL)
 
             # 尝试创建provider并调用一个简单的测试请求
             try:
