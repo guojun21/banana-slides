@@ -146,16 +146,8 @@ export const OutlineEditor: React.FC = () => {
   const textareaRef = useRef<MarkdownTextareaRef>(null);
   const getInputText = useCallback((project: typeof currentProject) => {
     if (!project) return '';
-    if (project.creation_type === 'outline') return project.outline_text || project.idea_prompt || '';
+    if (project.creation_type === 'outline' || project.creation_type === 'ppt_renovation') return project.outline_text || project.idea_prompt || '';
     if (project.creation_type === 'descriptions') return project.description_text || project.idea_prompt || '';
-    if (project.creation_type === 'ppt_renovation' && project.pages.length > 0) {
-      return project.pages.map((page, i) => {
-        const title = page.outline_content?.title || '';
-        const points = page.outline_content?.points || [];
-        const header = `第 ${i + 1} 页：${title}`;
-        return points.length > 0 ? `${header}\n${points.map(p => `- ${p}`).join('\n')}` : header;
-      }).join('\n\n');
-    }
     return project.idea_prompt || '';
   }, []);
 
@@ -170,13 +162,6 @@ export const OutlineEditor: React.FC = () => {
       setIsInputDirty(false);
     }
   }, [currentProject?.id]);
-
-  // 页面数据填充时（翻新场景）：仅在用户未编辑时更新
-  useEffect(() => {
-    if (currentProject && !isInputDirty) {
-      setInputText(getInputText(currentProject));
-    }
-  }, [currentProject?.pages?.length]);
 
   const handleSaveInputText = useCallback(async () => {
     if (!projectId || !currentProject || !isInputDirty) return;

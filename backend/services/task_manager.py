@@ -1059,6 +1059,18 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
             # Step 6: Update project
             project = Project.query.get(project_id)
             if project:
+                # Concatenate outlines so OutlineEditor can display them
+                all_outlines = []
+                for i in range(page_count):
+                    content = content_results.get(i, {})
+                    title = content.get('title', '')
+                    points = content.get('points', [])
+                    header = f"第{i + 1}页：{title}"
+                    if points:
+                        all_outlines.append(f"{header}\n" + "\n".join(f"- {p}" for p in points))
+                    else:
+                        all_outlines.append(header)
+                project.outline_text = "\n\n".join(all_outlines)
                 project.description_text = "\n\n".join(all_descriptions)
                 project.status = 'DESCRIPTIONS_GENERATED'
                 project.updated_at = datetime.utcnow()
