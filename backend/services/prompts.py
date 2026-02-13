@@ -997,7 +997,6 @@ Focus on:
 2. **Text placement**: Where text blocks are positioned, their relative sizes, alignment
 3. **Visual elements**: Position and size of images, charts, icons, decorative elements
 4. **Spacing and proportions**: How space is distributed between elements
-5. **Color scheme**: Background color, text colors, accent colors
 
 Output a concise layout description in Chinese that can be used to recreate a similar layout. Format:
 
@@ -1006,9 +1005,8 @@ Output a concise layout description in Chinese that can be used to recreate a si
 - 标题位置：[描述]
 - 内容区域：[描述]
 - 视觉元素：[描述]
-- 配色方案：[描述]
 
-Only describe the layout, do not describe the actual text content.
+Only describe the layout and spatial arrangement. Do not describe colors, text content, or style.
 """
     logger.debug(f"[get_layout_caption_prompt] Final prompt:\n{prompt}")
     return prompt
