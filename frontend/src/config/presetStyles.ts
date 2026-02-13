@@ -27,36 +27,6 @@ export const PRESET_STYLES: PresetStyle[] = [
     descriptionKey: 'presetStyles.academicFormal.description',
     previewImage: '/preset-previews/academic-formal.webp',
   },
-  {
-    id: 'creative-fun',
-    nameKey: 'presetStyles.creativeFun.name',
-    descriptionKey: 'presetStyles.creativeFun.description',
-    previewImage: '/preset-previews/creative-fun.webp',
-  },
-  {
-    id: 'minimalist-clean',
-    nameKey: 'presetStyles.minimalistClean.name',
-    descriptionKey: 'presetStyles.minimalistClean.description',
-    previewImage: '/preset-previews/minimalist-clean.webp',
-  },
-  {
-    id: 'luxury-premium',
-    nameKey: 'presetStyles.luxuryPremium.name',
-    descriptionKey: 'presetStyles.luxuryPremium.description',
-    previewImage: '/preset-previews/luxury-premium.webp',
-  },
-  {
-    id: 'nature-fresh',
-    nameKey: 'presetStyles.natureFresh.name',
-    descriptionKey: 'presetStyles.natureFresh.description',
-    previewImage: '/preset-previews/nature-fresh.webp',
-  },
-  {
-    id: 'gradient-vibrant',
-    nameKey: 'presetStyles.gradientVibrant.name',
-    descriptionKey: 'presetStyles.gradientVibrant.description',
-    previewImage: '/preset-previews/gradient-vibrant.webp',
-  },
 ];
 
 // Helper function to get style with translated values
