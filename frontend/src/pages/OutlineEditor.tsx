@@ -83,7 +83,7 @@ import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal 
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineOutline, updateProject, getTaskStatus } from '@/api/endpoints';
+import { refineOutline, updateProject } from '@/api/endpoints';
 import { useImagePaste } from '@/hooks/useImagePaste';
 import { exportOutlineToMarkdown } from '@/utils/projectUtils';
 import type { Page } from '@/types';
@@ -218,61 +218,6 @@ export const OutlineEditor: React.FC = () => {
     }
   }, [projectId, currentProject, syncProject]);
 
-  // PPT 翻新：异步任务轮询
-  const [isRenovationProcessing, setIsRenovationProcessing] = useState(false);
-  const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
-
-  useEffect(() => {
-    if (!projectId) return;
-    const taskId = localStorage.getItem('renovationTaskId');
-    if (!taskId) return;
-
-    setIsRenovationProcessing(true);
-    let cancelled = false;
-
-    const poll = async () => {
-      try {
-        const response = await getTaskStatus(projectId, taskId);
-        if (cancelled) return;
-        const task = response.data;
-        if (!task) return;
-
-        if (task.progress) {
-          setRenovationProgress({
-            total: task.progress.total || 0,
-            completed: task.progress.completed || 0,
-          });
-        }
-
-        if (task.status === 'COMPLETED') {
-          localStorage.removeItem('renovationTaskId');
-          setIsRenovationProcessing(false);
-          setRenovationProgress(null);
-          await syncProject(projectId);
-          return;
-        }
-
-        if (task.status === 'FAILED') {
-          localStorage.removeItem('renovationTaskId');
-          setIsRenovationProcessing(false);
-          setRenovationProgress(null);
-          show({ message: t('outline.messages.renovationFailed'), type: 'error' });
-          return;
-        }
-
-        // Still processing — poll again
-        setTimeout(poll, 2000);
-      } catch (err) {
-        if (cancelled) return;
-        console.error('Renovation task poll error:', err);
-        setTimeout(poll, 3000);
-      }
-    };
-
-    poll();
-    return () => { cancelled = true; };
-  }, [projectId]);
-
   // 拖拽传感器配置
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -355,13 +300,6 @@ export const OutlineEditor: React.FC = () => {
 
   if (isGlobalLoading) {
     return <Loading fullscreen message={t('outline.messages.generatingOutline')} />;
-  }
-
-  if (isRenovationProcessing) {
-    const msg = renovationProgress
-      ? `${t('outline.messages.renovationProcessing')} ${t('outline.messages.renovationProgress', { completed: String(renovationProgress.completed), total: String(renovationProgress.total) })}`
-      : t('outline.messages.renovationProcessing');
-    return <Loading fullscreen message={msg} />;
   }
 
   return (

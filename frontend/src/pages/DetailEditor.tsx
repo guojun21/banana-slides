@@ -15,6 +15,9 @@ const detailI18n = {
       noPagesHint: "请先返回大纲编辑页添加页面", backToOutline: "返回大纲编辑",
       aiPlaceholder: "例如：让描述更详细、删除第2页的某个要点、强调XXX的重要性... · Ctrl+Enter提交",
       aiPlaceholderShort: "例如：让描述更详细... · Ctrl+Enter",
+      renovationProcessing: "正在解析 PDF 内容...",
+      renovationProgress: "{{completed}}/{{total}} 页",
+      renovationFailed: "PDF 解析失败，请返回重试",
       messages: {
         generateSuccess: "生成成功", generateFailed: "生成失败",
         confirmRegenerate: "部分页面已有描述，重新生成将覆盖，确定继续吗？",
@@ -35,6 +38,9 @@ const detailI18n = {
       noPagesHint: "Please go back to outline editor to add pages first", backToOutline: "Back to Outline Editor",
       aiPlaceholder: "e.g., Make descriptions more detailed, remove a point from page 2, emphasize XXX... · Ctrl+Enter to submit",
       aiPlaceholderShort: "e.g., Make descriptions more detailed... · Ctrl+Enter",
+      renovationProcessing: "Parsing PDF content...",
+      renovationProgress: "{{completed}}/{{total}} pages",
+      renovationFailed: "PDF parsing failed, please go back and retry",
       messages: {
         generateSuccess: "Generated successfully", generateFailed: "Generation failed",
         confirmRegenerate: "Some pages already have descriptions. Regenerating will overwrite them. Continue?",
@@ -49,7 +55,7 @@ const detailI18n = {
 import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineDescriptions } from '@/api/endpoints';
+import { refineDescriptions, getTaskStatus } from '@/api/endpoints';
 import { exportDescriptionsToMarkdown } from '@/utils/projectUtils';
 
 export const DetailEditor: React.FC = () => {
@@ -70,6 +76,60 @@ export const DetailEditor: React.FC = () => {
   const { confirm, ConfirmDialog } = useConfirm();
   const [isAiRefining, setIsAiRefining] = React.useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
+  const [isRenovationProcessing, setIsRenovationProcessing] = useState(false);
+  const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
+
+  // PPT 翻新：异步任务轮询
+  useEffect(() => {
+    if (!projectId) return;
+    const taskId = localStorage.getItem('renovationTaskId');
+    if (!taskId) return;
+
+    setIsRenovationProcessing(true);
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const response = await getTaskStatus(projectId, taskId);
+        if (cancelled) return;
+        const task = response.data;
+        if (!task) return;
+
+        if (task.progress) {
+          setRenovationProgress({
+            total: task.progress.total || 0,
+            completed: task.progress.completed || 0,
+          });
+        }
+
+        if (task.status === 'COMPLETED') {
+          localStorage.removeItem('renovationTaskId');
+          setIsRenovationProcessing(false);
+          setRenovationProgress(null);
+          await syncProject(projectId);
+          return;
+        }
+
+        if (task.status === 'FAILED') {
+          localStorage.removeItem('renovationTaskId');
+          setIsRenovationProcessing(false);
+          setRenovationProgress(null);
+          show({ message: t('detail.renovationFailed'), type: 'error' });
+          return;
+        }
+
+        // Still processing — poll again
+        setTimeout(poll, 2000);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Renovation task poll error:', err);
+        setTimeout(poll, 3000);
+      }
+    };
+
+    poll();
+    return () => { cancelled = true; };
+  }, [projectId]);
 
   // 加载项目数据
   useEffect(() => {
@@ -197,6 +257,7 @@ export const DetailEditor: React.FC = () => {
                   navigate(`/project/${projectId}/outline`);
                 }
               }}
+              disabled={isRenovationProcessing}
               className="flex-shrink-0"
             >
               <span className="hidden sm:inline">{t('common.back')}</span>
@@ -207,6 +268,12 @@ export const DetailEditor: React.FC = () => {
             </div>
             <span className="text-gray-400 hidden lg:inline">|</span>
             <span className="text-sm md:text-lg font-semibold hidden lg:inline">{t('detail.title')}</span>
+            {isRenovationProcessing && (
+              <span className="text-sm text-banana-600 dark:text-banana animate-pulse ml-2">
+                {t('detail.renovationProcessing')}
+                {renovationProgress && ` ${t('detail.renovationProgress', { completed: String(renovationProgress.completed), total: String(renovationProgress.total) })}`}
+              </span>
+            )}
           </div>
           
           {/* 中间：AI 修改输入框 */}
@@ -215,12 +282,12 @@ export const DetailEditor: React.FC = () => {
               title=""
               placeholder={t('detail.aiPlaceholder')}
               onSubmit={handleAiRefineDescriptions}
-              disabled={false}
+              disabled={isRenovationProcessing}
               className="!p-0 !bg-transparent !border-0"
               onStatusChange={setIsAiRefining}
             />
           </div>
-          
+
           {/* 右侧：操作按钮 */}
           <div className="flex items-center gap-1.5 md:gap-2 flex-shrink-0">
             <Button
@@ -228,6 +295,7 @@ export const DetailEditor: React.FC = () => {
               size="sm"
               icon={<ArrowLeft size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => navigate(`/project/${projectId}/outline`)}
+              disabled={isRenovationProcessing}
               className="hidden md:inline-flex"
             >
               <span className="hidden lg:inline">{t('common.previous')}</span>
@@ -237,7 +305,7 @@ export const DetailEditor: React.FC = () => {
               size="sm"
               icon={<ArrowRight size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={() => navigate(`/project/${projectId}/preview`)}
-              disabled={!hasAllDescriptions}
+              disabled={!hasAllDescriptions || isRenovationProcessing}
               className="text-xs md:text-sm"
             >
               <span className="hidden sm:inline">{t('detail.generateImages')}</span>
@@ -251,7 +319,7 @@ export const DetailEditor: React.FC = () => {
             title=""
             placeholder={t('detail.aiPlaceholderShort')}
             onSubmit={handleAiRefineDescriptions}
-            disabled={false}
+            disabled={isRenovationProcessing}
             className="!p-0 !bg-transparent !border-0"
             onStatusChange={setIsAiRefining}
           />
@@ -266,6 +334,7 @@ export const DetailEditor: React.FC = () => {
               variant="primary"
               icon={<Sparkles size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={handleGenerateAll}
+              disabled={isRenovationProcessing}
               className="flex-1 sm:flex-initial text-sm md:text-base"
             >
               {t('detail.batchGenerate')}
@@ -274,7 +343,7 @@ export const DetailEditor: React.FC = () => {
               variant="secondary"
               icon={<Download size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={handleExportDescriptions}
-              disabled={!currentProject.pages.some(p => p.description_content)}
+              disabled={!currentProject.pages.some(p => p.description_content) || isRenovationProcessing}
               className="flex-1 sm:flex-initial text-sm md:text-base"
             >
               {t('detail.export')}
@@ -290,7 +359,7 @@ export const DetailEditor: React.FC = () => {
       {/* 主内容区 */}
       <main className="flex-1 p-3 md:p-6 overflow-y-auto min-h-0">
         <div className="max-w-7xl mx-auto">
-          {currentProject.pages.length === 0 ? (
+          {currentProject.pages.length === 0 && !isRenovationProcessing ? (
             <div className="text-center py-12 md:py-20">
               <div className="flex justify-center mb-4"><FileText size={48} className="text-gray-300" /></div>
               <h3 className="text-lg md:text-xl font-semibold text-gray-700 dark:text-foreground-secondary mb-2">
@@ -309,7 +378,23 @@ export const DetailEditor: React.FC = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
-              {currentProject.pages.map((page, index) => {
+              {isRenovationProcessing && currentProject.pages.length === 0 ? (
+                /* Placeholder skeleton cards while renovation creates pages */
+                Array.from({ length: renovationProgress?.total || 6 }).map((_, index) => (
+                  <DescriptionCard
+                    key={`skeleton-${index}`}
+                    page={{ id: `skeleton-${index}`, title: '', sort_order: index } as any}
+                    index={index}
+                    projectId={currentProject.id}
+                    showToast={show}
+                    onUpdate={() => {}}
+                    onRegenerate={() => {}}
+                    isGenerating={true}
+                    isAiRefining={false}
+                  />
+                ))
+              ) : (
+                currentProject.pages.map((page, index) => {
                 const pageId = page.id || page.page_id;
                 return (
                   <DescriptionCard
@@ -320,11 +405,12 @@ export const DetailEditor: React.FC = () => {
                     showToast={show}
                     onUpdate={(data) => updatePageLocal(pageId, data)}
                     onRegenerate={() => handleRegeneratePage(pageId)}
-                    isGenerating={pageId ? !!pageDescriptionGeneratingTasks[pageId] : false}
+                    isGenerating={isRenovationProcessing || (pageId ? !!pageDescriptionGeneratingTasks[pageId] : false)}
                     isAiRefining={isAiRefining}
                   />
                 );
-              })}
+              })
+              )}
             </div>
           )}
         </div>

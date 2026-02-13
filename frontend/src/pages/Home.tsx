@@ -522,6 +522,8 @@ export const Home: React.FC = () => {
     }
   };
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleSubmit = async () => {
     // For ppt_renovation, validate file instead of content
     if (activeTab === 'ppt_renovation') {
@@ -546,6 +548,7 @@ export const Home: React.FC = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       // PPT 翻新模式：走独立的上传+异步解析流程
       if (activeTab === 'ppt_renovation' && renovationFile) {
@@ -562,7 +565,7 @@ export const Home: React.FC = () => {
           return;
         }
 
-        // Save project ID and task ID for OutlineEditor to poll
+        // Save project ID and task ID for DetailEditor to poll
         localStorage.setItem('currentProjectId', projectId);
         if (taskId) {
           localStorage.setItem('renovationTaskId', taskId);
@@ -572,8 +575,8 @@ export const Home: React.FC = () => {
         sessionStorage.removeItem('home-draft-content');
         sessionStorage.removeItem('home-draft-tab');
 
-        // Navigate to outline editor (will poll for task completion)
-        navigate(`/project/${projectId}/outline`);
+        // Navigate to detail editor (will poll for task completion with skeleton UI)
+        navigate(`/project/${projectId}/detail`);
         return;
       }
 
@@ -651,6 +654,8 @@ export const Home: React.FC = () => {
     } catch (error: any) {
       console.error('创建项目失败:', error);
       // 错误已经在 store 中处理并显示
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -973,7 +978,7 @@ export const Home: React.FC = () => {
                   <Button
                     size="sm"
                     onClick={handleSubmit}
-                    loading={isGlobalLoading}
+                    loading={isSubmitting || isGlobalLoading}
                     disabled={!renovationFile}
                     className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"
                   >
@@ -1005,7 +1010,7 @@ export const Home: React.FC = () => {
                 <Button
                   size="sm"
                   onClick={handleSubmit}
-                  loading={isGlobalLoading}
+                  loading={isSubmitting || isGlobalLoading}
                   disabled={
                     !content.trim() ||
                     isUploadingImage ||
