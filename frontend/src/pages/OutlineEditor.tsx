@@ -163,11 +163,20 @@ export const OutlineEditor: React.FC = () => {
   const [isInputDirty, setIsInputDirty] = useState(false);
   const [isSavingInput, setIsSavingInput] = useState(false);
 
+  // 项目切换时：强制加载文本
+  useEffect(() => {
+    if (currentProject) {
+      setInputText(getInputText(currentProject));
+      setIsInputDirty(false);
+    }
+  }, [currentProject?.id]);
+
+  // 页面数据填充时（翻新场景）：仅在用户未编辑时更新
   useEffect(() => {
     if (currentProject && !isInputDirty) {
       setInputText(getInputText(currentProject));
     }
-  }, [currentProject?.id, currentProject?.pages?.length]);
+  }, [currentProject?.pages?.length]);
 
   const handleSaveInputText = useCallback(async () => {
     if (!projectId || !currentProject || !isInputDirty) return;
