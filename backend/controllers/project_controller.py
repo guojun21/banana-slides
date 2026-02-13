@@ -3,16 +3,20 @@ Project Controller - handles project-related endpoints
 """
 import json
 import logging
+import os
+import subprocess
 import traceback
 from datetime import datetime
+from pathlib import Path
 
 from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy import desc
 from sqlalchemy.orm import joinedload
 from werkzeug.exceptions import BadRequest
+from werkzeug.utils import secure_filename
 
 from models import db, Project, Page, Task, ReferenceFile
-from services import ProjectContext
+from services import ProjectContext, FileService
 from services.ai_service_manager import get_ai_service
 from services.task_manager import (
     task_manager,
@@ -1122,19 +1126,14 @@ def create_ppt_renovation_project():
         project_id = project.id
 
         # Save uploaded file
-        from services import FileService
-        from pathlib import Path
-        import subprocess
-        import os
-
         file_service = FileService(current_app.config['UPLOAD_FOLDER'])
         project_dir = Path(current_app.config['UPLOAD_FOLDER']) / project_id
         template_dir = project_dir / "template"
         template_dir.mkdir(parents=True, exist_ok=True)
 
         # Save original file
-        from werkzeug.utils import secure_filename as sf
-        safe_name = sf(file.filename)
+        safe_name = secure_filename(file.filename)
+        safe_name = secure_filename(file.filename)
         original_path = template_dir / safe_name
         file.save(str(original_path))
 
@@ -1319,10 +1318,8 @@ def extract_style():
 
         # Save to temp location
         import tempfile
-        import os
-        from werkzeug.utils import secure_filename as sf
 
-        ext = sf(file.filename).rsplit('.', 1)[-1].lower() if '.' in file.filename else 'png'
+        ext = secure_filename(file.filename).rsplit('.', 1)[-1].lower() if '.' in file.filename else 'png'
         with tempfile.NamedTemporaryFile(suffix=f'.{ext}', delete=False) as tmp:
             file.save(tmp.name)
             tmp_path = tmp.name

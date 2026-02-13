@@ -687,17 +687,8 @@ class AIService:
 
         return result
 
-    def generate_layout_caption(self, image_path: str) -> str:
-        """
-        使用 caption model 描述 PPT 页面的排版布局
-
-        Args:
-            image_path: 页面图片路径
-
-        Returns:
-            布局描述文本
-        """
-        prompt = get_layout_caption_prompt()
+    def _generate_text_from_image(self, prompt: str, image_path: str) -> str:
+        """Helper to generate text from a prompt and an image."""
         actual_budget = self._get_text_thinking_budget()
 
         if hasattr(self.text_provider, 'generate_with_image'):
@@ -716,34 +707,12 @@ class AIService:
             raise ValueError("text_provider does not support image input")
 
         return response_text.strip()
+
+    def generate_layout_caption(self, image_path: str) -> str:
+        """使用 caption model 描述 PPT 页面的排版布局"""
+        return self._generate_text_from_image(get_layout_caption_prompt(), image_path)
 
     def extract_style_description(self, image_path: str) -> str:
-        """
-        从图片中提取风格描述（通用，可复用于所有创建模式）
-
-        Args:
-            image_path: 风格参考图片路径
-
-        Returns:
-            风格描述文本
-        """
-        prompt = get_style_extraction_prompt()
-        actual_budget = self._get_text_thinking_budget()
-
-        if hasattr(self.text_provider, 'generate_with_image'):
-            response_text = self.text_provider.generate_with_image(
-                prompt=prompt,
-                image_path=image_path,
-                thinking_budget=actual_budget
-            )
-        elif hasattr(self.text_provider, 'generate_text_with_images'):
-            response_text = self.text_provider.generate_text_with_images(
-                prompt=prompt,
-                images=[image_path],
-                thinking_budget=actual_budget
-            )
-        else:
-            raise ValueError("text_provider does not support image input")
-
-        return response_text.strip()
+        """从图片中提取风格描述"""
+        return self._generate_text_from_image(get_style_extraction_prompt(), image_path)
 

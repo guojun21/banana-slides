@@ -3,6 +3,7 @@ Task Manager - handles background tasks using ThreadPoolExecutor
 No need for Celery or Redis, uses in-memory task tracking
 """
 import logging
+import os
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, List, Dict, Any, Optional
@@ -13,6 +14,7 @@ from models import db, Task, Page, Material, PageImageVersion
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 from pathlib import Path
+from services.pdf_service import split_pdf_to_pages
 
 logger = logging.getLogger(__name__)
 
@@ -896,7 +898,6 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                 raise ValueError("No PDF file found for renovation project")
 
             # Step 1: Split PDF into per-page PDFs
-            from services.pdf_service import split_pdf_to_pages
             split_dir = str(project_dir / "split_pages")
             page_pdfs = split_pdf_to_pages(pdf_path, split_dir)
             logger.info(f"Split PDF into {len(page_pdfs)} pages")
@@ -926,7 +927,6 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
             def parse_single_page(idx, page_pdf_path):
                 with app.app_context():
                     try:
-                        import os
                         filename = os.path.basename(page_pdf_path)
                         _batch_id, md_text, _extract_id, error_msg, _failed = file_parser_service.parse_file(page_pdf_path, filename)
                         if error_msg:
