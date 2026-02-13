@@ -70,6 +70,19 @@ const homeI18n = {
         parsing: '解析中...',
         createProject: '创建新项目',
       },
+      renovation: {
+        uploadHint: '点击或拖拽上传 PDF / PPTX 文件',
+        formatHint: '支持 .pdf, .pptx, .ppt 格式',
+        keepLayout: '保留原始排版布局',
+        onlyPdfPptx: '仅支持 PDF 和 PPTX 文件',
+        uploadFile: '请先上传 PDF 或 PPTX 文件',
+      },
+      style: {
+        extractFromImage: '从图片提取风格',
+        extracting: '提取中...',
+        extractSuccess: '风格提取成功',
+        extractFailed: '风格提取失败',
+      },
       messages: {
         enterContent: '请输入内容',
         filesParsing: '还有 {{count}} 个参考文件正在解析中，请等待解析完成',
@@ -142,6 +155,19 @@ const homeI18n = {
         selectFile: 'Select reference file',
         parsing: 'Parsing...',
         createProject: 'Create New Project',
+      },
+      renovation: {
+        uploadHint: 'Click or drag to upload PDF / PPTX file',
+        formatHint: 'Supports .pdf, .pptx, .ppt formats',
+        keepLayout: 'Keep original layout',
+        onlyPdfPptx: 'Only PDF and PPTX files are supported',
+        uploadFile: 'Please upload a PDF or PPTX file first',
+      },
+      style: {
+        extractFromImage: 'Extract from image',
+        extracting: 'Extracting...',
+        extractSuccess: 'Style extracted successfully',
+        extractFailed: 'Style extraction failed',
       },
       messages: {
         enterContent: 'Please enter content',
@@ -500,7 +526,7 @@ export const Home: React.FC = () => {
     // For ppt_renovation, validate file instead of content
     if (activeTab === 'ppt_renovation') {
       if (!renovationFile) {
-        show({ message: '请先上传 PDF 或 PPTX 文件', type: 'error' });
+        show({ message: t('home.renovation.uploadFile'), type: 'error' });
         return;
       }
     } else if (!content.trim()) {
@@ -906,7 +932,7 @@ export const Home: React.FC = () => {
                     if (file && (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.pptx') || file.name.toLowerCase().endsWith('.ppt'))) {
                       setRenovationFile(file);
                     } else {
-                      show({ message: '仅支持 PDF 和 PPTX 文件', type: 'error' });
+                      show({ message: t('home.renovation.onlyPdfPptx'), type: 'error' });
                     }
                   }}
                 >
@@ -928,8 +954,8 @@ export const Home: React.FC = () => {
                   ) : (
                     <div className="space-y-2">
                       <Upload size={32} className="mx-auto text-gray-400 dark:text-foreground-tertiary" />
-                      <p className="text-sm text-gray-600 dark:text-foreground-secondary">点击或拖拽上传 PDF / PPTX 文件</p>
-                      <p className="text-xs text-gray-400 dark:text-foreground-tertiary">支持 .pdf, .pptx, .ppt 格式</p>
+                      <p className="text-sm text-gray-600 dark:text-foreground-secondary">{t('home.renovation.uploadHint')}</p>
+                      <p className="text-xs text-gray-400 dark:text-foreground-tertiary">{t('home.renovation.formatHint')}</p>
                     </div>
                   )}
                 </div>
@@ -949,7 +975,7 @@ export const Home: React.FC = () => {
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-2 cursor-pointer group">
                     <span className="text-sm text-gray-600 dark:text-foreground-tertiary group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
-                      保留原始排版布局
+                      {t('home.renovation.keepLayout')}
                     </span>
                     <div className="relative">
                       <input
@@ -1094,8 +1120,12 @@ export const Home: React.FC = () => {
                           onClick={() => setTemplateStyle(t(preset.descriptionKey))}
                           onMouseEnter={() => setHoveredPresetId(preset.id)}
                           onMouseLeave={() => setHoveredPresetId(null)}
-                          className="px-3 py-1.5 text-xs font-medium rounded-full border-2 border-gray-200 dark:border-border-primary dark:text-foreground-secondary hover:border-banana-400 dark:hover:border-banana hover:bg-banana-50 dark:hover:bg-background-hover transition-all duration-200 hover:shadow-sm dark:hover:shadow-none"
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full border-2 border-gray-200 dark:border-border-primary dark:text-foreground-secondary hover:border-banana-400 dark:hover:border-banana hover:bg-banana-50 dark:hover:bg-background-hover transition-all duration-200 hover:shadow-sm dark:hover:shadow-none"
                         >
+                          <span
+                            className="w-2.5 h-2.5 rounded-full flex-shrink-0 ring-1 ring-black/10"
+                            style={{ backgroundColor: preset.color }}
+                          />
                           {t(preset.nameKey)}
                         </button>
 
@@ -1135,12 +1165,12 @@ export const Home: React.FC = () => {
                       {isExtractingStyle ? (
                         <>
                           <span className="animate-spin">⏳</span>
-                          提取中...
+                          {t('home.style.extracting')}
                         </>
                       ) : (
                         <>
                           <ImagePlus size={12} />
-                          从图片提取风格
+                          {t('home.style.extractFromImage')}
                         </>
                       )}
                     </button>
@@ -1157,10 +1187,10 @@ export const Home: React.FC = () => {
                           const result = await extractStyleFromImage(file);
                           if (result.data?.style_description) {
                             setTemplateStyle(result.data.style_description);
-                            show({ message: '风格提取成功', type: 'success' });
+                            show({ message: t('home.style.extractSuccess'), type: 'success' });
                           }
                         } catch (error: any) {
-                          show({ message: `风格提取失败: ${error?.message || '未知错误'}`, type: 'error' });
+                          show({ message: `${t('home.style.extractFailed')}: ${error?.message || ''}`, type: 'error' });
                         } finally {
                           setIsExtractingStyle(false);
                         }
