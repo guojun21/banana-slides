@@ -968,8 +968,8 @@ Your task is to extract the following structured information from this slide:
 其他页面素材（如果有图表、表格、公式等描述，保留原文中的markdown图片完整形式）
 
 Rules:
-- Extract the title from the most prominent heading
-- Points should be concise summaries of the slide content
+- Extract the title faithfully from the first heading in the markdown. Do NOT invent or rephrase it
+- Points must be extracted verbatim from the slide content, in their original order
 - The description should capture ALL content on the slide including text, data, and visual element descriptions
 - If there are tables, charts, or formulas, describe them in the description under "其他页面素材"
 - Preserve the original language of the content
