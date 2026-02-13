@@ -965,7 +965,7 @@ Your task is to extract the following structured information from this slide:
 - [point 2]
 ...
 
-其他页面素材（如果有图表、表格、公式等描述）
+其他页面素材（如果有图表、表格、公式等描述，保留原文中的markdown图片完整形式）
 
 Rules:
 - Extract the title from the most prominent heading
