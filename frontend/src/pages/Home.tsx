@@ -919,6 +919,10 @@ export const Home: React.FC = () => {
                     const file = e.dataTransfer.files[0];
                     if (file && (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.pptx') || file.name.toLowerCase().endsWith('.ppt'))) {
                       setRenovationFile(file);
+                      const ext = file.name.split('.').pop()?.toLowerCase();
+                      if (ext === 'ppt' || ext === 'pptx') {
+                        show({ message: `💡 ${t('home.messages.pptTip')}`, type: 'info' });
+                      }
                     } else {
                       show({ message: t('home.renovation.onlyPdfPptx'), type: 'error' });
                     }
@@ -953,7 +957,13 @@ export const Home: React.FC = () => {
                   accept=".pdf,.pptx,.ppt"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) setRenovationFile(file);
+                    if (file) {
+                      setRenovationFile(file);
+                      const ext = file.name.split('.').pop()?.toLowerCase();
+                      if (ext === 'ppt' || ext === 'pptx') {
+                        show({ message: `💡 ${t('home.messages.pptTip')}`, type: 'info' });
+                      }
+                    }
                     e.target.value = '';
                   }}
                   className="hidden"
