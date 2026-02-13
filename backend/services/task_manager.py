@@ -835,6 +835,262 @@ def generate_material_image_task(task_id: str, project_id: str, prompt: str,
                     shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
+                                file_service, file_parser_service,
+                                keep_layout: bool = False,
+                                max_workers: int = 5, app=None,
+                                language: str = 'zh'):
+    """
+    Background task for PPT renovation: parse PDF pages → extract content → fill outline + description
+
+    Flow:
+    1. Split PDF → per-page PDFs
+    2. Parallel: parse each page PDF → markdown via fileparser
+    3. Parallel: AI extract {title, points, description} from each markdown
+    4. If keep_layout: parallel caption model describe layout → append to description
+    5. Update page.outline_content + page.description_content
+    6. Concatenate descriptions → project.description_text
+    7. project.status = DESCRIPTIONS_GENERATED
+
+    Args:
+        task_id: Task ID
+        project_id: Project ID
+        ai_service: AI service instance
+        file_service: FileService instance
+        file_parser_service: FileParserService instance
+        keep_layout: Whether to preserve original layout via caption model
+        max_workers: Maximum parallel workers
+        app: Flask app instance
+        language: Output language
+    """
+    if app is None:
+        raise ValueError("Flask app instance must be provided")
+
+    with app.app_context():
+        try:
+            task = Task.query.get(task_id)
+            if not task:
+                logger.error(f"Task {task_id} not found")
+                return
+
+            task.status = 'PROCESSING'
+            db.session.commit()
+
+            from models import Project
+            project = Project.query.get(project_id)
+            if not project:
+                raise ValueError(f"Project {project_id} not found")
+
+            # Get the PDF path from project
+            pdf_path = None
+            project_dir = Path(app.config['UPLOAD_FOLDER']) / project_id
+            # Look for the uploaded PDF file
+            for f in (project_dir / "template").iterdir() if (project_dir / "template").exists() else []:
+                if f.suffix.lower() == '.pdf':
+                    pdf_path = str(f)
+                    break
+
+            if not pdf_path:
+                raise ValueError("No PDF file found for renovation project")
+
+            # Step 1: Split PDF into per-page PDFs
+            from services.pdf_service import split_pdf_to_pages
+            split_dir = str(project_dir / "split_pages")
+            page_pdfs = split_pdf_to_pages(pdf_path, split_dir)
+            logger.info(f"Split PDF into {len(page_pdfs)} pages")
+
+            # Get existing pages
+            pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
+
+            # Ensure page count matches
+            if len(pages) != len(page_pdfs):
+                logger.warning(f"Page count mismatch: {len(pages)} pages vs {len(page_pdfs)} PDFs. Using min.")
+
+            page_count = min(len(pages), len(page_pdfs))
+
+            task.set_progress({
+                "total": page_count,
+                "completed": 0,
+                "failed": 0,
+                "current_step": "parsing"
+            })
+            db.session.commit()
+
+            # Step 2: Parallel parse each page PDF → markdown
+            logger.info("Step 2: Parsing page PDFs to markdown...")
+            markdown_results = {}  # index -> markdown_text
+
+            def parse_single_page(idx, page_pdf_path):
+                with app.app_context():
+                    try:
+                        import os
+                        filename = os.path.basename(page_pdf_path)
+                        _batch_id, md_text, _extract_id, error_msg, _failed = file_parser_service.parse_file(page_pdf_path, filename)
+                        if error_msg:
+                            logger.warning(f"Page {idx} parse warning: {error_msg}")
+                        return (idx, md_text or '', None)
+                    except Exception as e:
+                        logger.error(f"Failed to parse page {idx}: {e}")
+                        return (idx, '', str(e))
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [
+                    executor.submit(parse_single_page, i, page_pdfs[i])
+                    for i in range(page_count)
+                ]
+                for future in as_completed(futures):
+                    idx, md_text, error = future.result()
+                    markdown_results[idx] = md_text
+                    if error:
+                        logger.warning(f"Page {idx} parse error: {error}")
+
+            logger.info(f"Parsed {len(markdown_results)} pages to markdown")
+
+            # Step 3: Parallel AI extract content from each markdown
+            logger.info("Step 3: Extracting structured content from markdown...")
+            content_results = {}  # index -> {title, points, description}
+            completed = 0
+            failed = 0
+
+            def extract_single_content(idx, md_text):
+                with app.app_context():
+                    try:
+                        if not md_text.strip():
+                            return (idx, {'title': f'Page {idx + 1}', 'points': [], 'description': ''}, None)
+                        result = ai_service.extract_page_content(md_text, language=language)
+                        return (idx, result, None)
+                    except Exception as e:
+                        logger.error(f"Failed to extract content for page {idx}: {e}")
+                        return (idx, {'title': f'Page {idx + 1}', 'points': [], 'description': md_text}, str(e))
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = [
+                    executor.submit(extract_single_content, i, markdown_results.get(i, ''))
+                    for i in range(page_count)
+                ]
+                for future in as_completed(futures):
+                    idx, content, error = future.result()
+                    content_results[idx] = content
+                    if error:
+                        failed += 1
+                    else:
+                        completed += 1
+
+                    task_obj = Task.query.get(task_id)
+                    if task_obj:
+                        task_obj.update_progress(completed=completed, failed=failed)
+                        db.session.commit()
+
+            logger.info(f"Extracted content for {completed} pages, {failed} failed")
+
+            # Step 4: If keep_layout, parallel caption model describe layout
+            if keep_layout:
+                logger.info("Step 4: Generating layout captions...")
+                pages_dir = project_dir / "pages"
+
+                def caption_single_layout(idx):
+                    with app.app_context():
+                        try:
+                            # Find the page image (generated during project creation)
+                            page_obj = pages[idx] if idx < len(pages) else None
+                            if not page_obj:
+                                return (idx, '', 'Page not found')
+
+                            # Try to find page image from cached or generated path
+                            image_path = None
+                            if page_obj.cached_image_path:
+                                image_path = file_service.get_absolute_path(page_obj.cached_image_path)
+                            elif page_obj.generated_image_path:
+                                image_path = file_service.get_absolute_path(page_obj.generated_image_path)
+
+                            if not image_path or not Path(image_path).exists():
+                                return (idx, '', 'No page image found')
+
+                            caption = ai_service.generate_layout_caption(image_path)
+                            return (idx, caption, None)
+                        except Exception as e:
+                            logger.error(f"Failed to generate layout caption for page {idx}: {e}")
+                            return (idx, '', str(e))
+
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    futures = [
+                        executor.submit(caption_single_layout, i)
+                        for i in range(page_count)
+                    ]
+                    for future in as_completed(futures):
+                        idx, caption, error = future.result()
+                        if caption and idx in content_results:
+                            # Append layout description to page description
+                            content_results[idx]['description'] += f"\n\n{caption}"
+
+            # Step 5: Update pages with extracted content
+            logger.info("Step 5: Updating pages with extracted content...")
+            db.session.expire_all()
+
+            all_descriptions = []
+            for i in range(page_count):
+                page = Page.query.get(pages[i].id)
+                if not page:
+                    continue
+
+                content = content_results.get(i, {})
+                title = content.get('title', f'Page {i + 1}')
+                points = content.get('points', [])
+                description = content.get('description', '')
+
+                # Set outline content
+                page.set_outline_content({
+                    'title': title,
+                    'points': points
+                })
+
+                # Set description content
+                desc_content = {
+                    "text": description,
+                    "generated_at": datetime.utcnow().isoformat()
+                }
+                page.set_description_content(desc_content)
+                page.status = 'DESCRIPTION_GENERATED'
+
+                all_descriptions.append(f"--- 第{i + 1}页 ---\n{description}")
+
+            # Step 6: Update project
+            project = Project.query.get(project_id)
+            if project:
+                project.description_text = "\n\n".join(all_descriptions)
+                project.status = 'DESCRIPTIONS_GENERATED'
+                project.updated_at = datetime.utcnow()
+
+            db.session.commit()
+
+            # Mark task as completed
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'COMPLETED'
+                task.completed_at = datetime.utcnow()
+                task.set_progress({
+                    "total": page_count,
+                    "completed": completed,
+                    "failed": failed,
+                    "current_step": "done"
+                })
+                db.session.commit()
+
+            logger.info(f"Task {task_id} COMPLETED - PPT renovation processed {page_count} pages")
+
+        except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
+            logger.error(f"Task {task_id} FAILED: {error_detail}")
+
+            task = Task.query.get(task_id)
+            if task:
+                task.status = 'FAILED'
+                task.error_message = str(e)
+                task.completed_at = datetime.utcnow()
+                db.session.commit()
+
+
 def export_editable_pptx_with_recursive_analysis_task(
     task_id: str, 
     project_id: str, 

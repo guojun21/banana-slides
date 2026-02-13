@@ -27,7 +27,9 @@ const outlineI18n = {
         confirmRegenerate: "已有大纲内容，重新生成将覆盖现有内容，确定继续吗？",
         confirmRegenerateTitle: "确认重新生成", refineSuccess: "大纲修改成功",
         refineFailed: "修改失败，请稍后重试", exportSuccess: "导出成功",
-        loadingProject: "加载项目中...", generatingOutline: "生成大纲中..."
+        loadingProject: "加载项目中...", generatingOutline: "生成大纲中...",
+        renovationProcessing: "正在解析 PDF 内容...", renovationProgress: "已完成 {{completed}}/{{total}} 页",
+        renovationFailed: "PDF 解析失败，请返回重试"
       }
     }
   },
@@ -53,7 +55,9 @@ const outlineI18n = {
         confirmRegenerate: "Existing outline will be overwritten. Continue?",
         confirmRegenerateTitle: "Confirm Regenerate", refineSuccess: "Outline modified successfully",
         refineFailed: "Modification failed, please try again", exportSuccess: "Export successful",
-        loadingProject: "Loading project...", generatingOutline: "Generating outline..."
+        loadingProject: "Loading project...", generatingOutline: "Generating outline...",
+        renovationProcessing: "Parsing PDF content...", renovationProgress: "Completed {{completed}}/{{total}} pages",
+        renovationFailed: "PDF parsing failed, please go back and retry"
       }
     }
   }
@@ -79,7 +83,7 @@ import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal 
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
-import { refineOutline, updateProject } from '@/api/endpoints';
+import { refineOutline, updateProject, getTaskStatus } from '@/api/endpoints';
 import { useImagePaste } from '@/hooks/useImagePaste';
 import { exportOutlineToMarkdown } from '@/utils/projectUtils';
 import type { Page } from '@/types';
@@ -214,6 +218,61 @@ export const OutlineEditor: React.FC = () => {
     }
   }, [projectId, currentProject, syncProject]);
 
+  // PPT 翻新：异步任务轮询
+  const [isRenovationProcessing, setIsRenovationProcessing] = useState(false);
+  const [renovationProgress, setRenovationProgress] = useState<{ total: number; completed: number } | null>(null);
+
+  useEffect(() => {
+    if (!projectId) return;
+    const taskId = localStorage.getItem('renovationTaskId');
+    if (!taskId) return;
+
+    setIsRenovationProcessing(true);
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const response = await getTaskStatus(projectId, taskId);
+        if (cancelled) return;
+        const task = response.data;
+        if (!task) return;
+
+        if (task.progress) {
+          setRenovationProgress({
+            total: task.progress.total || 0,
+            completed: task.progress.completed || 0,
+          });
+        }
+
+        if (task.status === 'COMPLETED') {
+          localStorage.removeItem('renovationTaskId');
+          setIsRenovationProcessing(false);
+          setRenovationProgress(null);
+          await syncProject(projectId);
+          return;
+        }
+
+        if (task.status === 'FAILED') {
+          localStorage.removeItem('renovationTaskId');
+          setIsRenovationProcessing(false);
+          setRenovationProgress(null);
+          show({ message: t('outline.messages.renovationFailed'), type: 'error' });
+          return;
+        }
+
+        // Still processing — poll again
+        setTimeout(poll, 2000);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Renovation task poll error:', err);
+        setTimeout(poll, 3000);
+      }
+    };
+
+    poll();
+    return () => { cancelled = true; };
+  }, [projectId]);
+
   // 拖拽传感器配置
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -296,6 +355,13 @@ export const OutlineEditor: React.FC = () => {
 
   if (isGlobalLoading) {
     return <Loading fullscreen message={t('outline.messages.generatingOutline')} />;
+  }
+
+  if (isRenovationProcessing) {
+    const msg = renovationProgress
+      ? `${t('outline.messages.renovationProcessing')} ${t('outline.messages.renovationProgress', { completed: String(renovationProgress.completed), total: String(renovationProgress.total) })}`
+      : t('outline.messages.renovationProcessing');
+    return <Loading fullscreen message={msg} />;
   }
 
   return (
