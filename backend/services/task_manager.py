@@ -992,9 +992,9 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
 
             logger.info(f"Extracted content for {completed} pages, {failed} failed")
 
-            # Fail-fast: if more than half the pages failed AI extraction, abort
-            if failed > page_count // 2:
-                raise ValueError(f"Too many extraction failures ({failed}/{page_count}). Aborting.")
+            # Fail-fast: any extraction failure aborts the entire task
+            if failed > 0:
+                raise ValueError(f"{failed}/{page_count} pages failed content extraction. Aborting.")
 
             # Step 4: If keep_layout, parallel caption model describe layout
             if keep_layout:
