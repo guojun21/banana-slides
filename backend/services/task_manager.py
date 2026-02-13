@@ -920,172 +920,131 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
             })
             db.session.commit()
 
-            # Step 2: Parallel parse each page PDF → markdown
-            logger.info("Step 2: Parsing page PDFs to markdown...")
-            markdown_results = {}  # index -> markdown_text
-
-            def parse_single_page(idx, page_pdf_path):
-                with app.app_context():
-                    try:
-                        filename = os.path.basename(page_pdf_path)
-                        _batch_id, md_text, _extract_id, error_msg, _failed = file_parser_service.parse_file(page_pdf_path, filename)
-                        if error_msg:
-                            logger.warning(f"Page {idx} parse warning: {error_msg}")
-                        return (idx, md_text or '', None)
-                    except Exception as e:
-                        logger.error(f"Failed to parse page {idx}: {e}")
-                        return (idx, '', str(e))
-
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                futures = [
-                    executor.submit(parse_single_page, i, page_pdfs[i])
-                    for i in range(page_count)
-                ]
-                parse_failures = 0
-                for future in as_completed(futures):
-                    idx, md_text, error = future.result()
-                    markdown_results[idx] = md_text
-                    if error:
-                        parse_failures += 1
-                        logger.warning(f"Page {idx} parse error: {error}")
-
-            # Fail-fast: if all pages failed to parse, abort
-            if parse_failures == page_count:
-                raise ValueError(f"All {page_count} pages failed to parse. Cannot continue.")
-
-            logger.info(f"Parsed {len(markdown_results)} pages to markdown ({parse_failures} failed)")
-
-            # Step 3: Parallel AI extract content from each markdown
-            logger.info("Step 3: Extracting structured content from markdown...")
-            content_results = {}  # index -> {title, points, description}
-            extraction_errors = []  # collect error messages
+            # Process each page as an independent pipeline:
+            # parse markdown → AI extract content → (optional layout caption) → write to DB
+            logger.info("Processing pages (parse → extract → save pipeline)...")
+            import threading
+            progress_lock = threading.Lock()
             completed = 0
             failed = 0
+            extraction_errors = []
+            content_results = {}  # index -> {title, points, description}
 
-            def extract_single_content(idx, md_text):
+            def process_single_page(idx, page_pdf_path):
+                nonlocal completed, failed
                 with app.app_context():
                     try:
+                        # Step A: Parse page PDF → markdown
+                        filename = os.path.basename(page_pdf_path)
+                        _batch_id, md_text, extract_id, error_msg, _failed = file_parser_service.parse_file(page_pdf_path, filename)
+                        if error_msg:
+                            logger.warning(f"Page {idx} parse warning: {error_msg}")
+                        md_text = md_text or ''
+
+                        # Supplement with header/footer from layout.json
+                        if extract_id:
+                            hf_text = file_parser_service.extract_header_footer_from_layout(extract_id)
+                            if hf_text:
+                                md_text = hf_text + '\n\n' + md_text
+
                         if not md_text.strip():
-                            return (idx, {'title': f'Page {idx + 1}', 'points': [], 'description': ''}, 'empty_input')
-                        result = ai_service.extract_page_content(md_text, language=language)
-                        return (idx, result, None)
+                            content = {'title': f'Page {idx + 1}', 'points': [], 'description': ''}
+                            error = 'empty_input'
+                        else:
+                            # Step B: AI extract structured content
+                            content = ai_service.extract_page_content(md_text, language=language)
+                            error = None
+
+                        # Step C: Optional layout caption
+                        if keep_layout and not error:
+                            try:
+                                page_obj = pages[idx] if idx < len(pages) else None
+                                if page_obj:
+                                    image_path = None
+                                    if page_obj.cached_image_path:
+                                        image_path = file_service.get_absolute_path(page_obj.cached_image_path)
+                                    elif page_obj.generated_image_path:
+                                        image_path = file_service.get_absolute_path(page_obj.generated_image_path)
+                                    if image_path and Path(image_path).exists():
+                                        caption = ai_service.generate_layout_caption(image_path)
+                                        if caption:
+                                            content['description'] += f"\n\n{caption}"
+                            except Exception as e:
+                                logger.error(f"Layout caption failed for page {idx}: {e}")
+
+                        # Step D: Write to DB immediately
+                        content_results[idx] = content
+                        page_obj = Page.query.get(pages[idx].id)
+                        if page_obj:
+                            title = content.get('title', f'Page {idx + 1}')
+                            points = content.get('points', [])
+                            description = content.get('description', '')
+
+                            page_obj.set_outline_content({
+                                'title': title,
+                                'points': points
+                            })
+                            page_obj.set_description_content({
+                                "text": description,
+                                "generated_at": datetime.utcnow().isoformat()
+                            })
+                            page_obj.status = 'DESCRIPTION_GENERATED'
+                            db.session.commit()
+
+                        with progress_lock:
+                            if error and error != 'empty_input':
+                                failed += 1
+                                extraction_errors.append(error)
+                            else:
+                                completed += 1
+                            task_obj = Task.query.get(task_id)
+                            if task_obj:
+                                task_obj.update_progress(completed=completed, failed=failed)
+                                db.session.commit()
+
+                        logger.info(f"Page {idx} pipeline done (completed={completed}, failed={failed})")
+
                     except Exception as e:
-                        logger.error(f"Failed to extract content for page {idx}: {e}")
-                        return (idx, {'title': f'Page {idx + 1}', 'points': [], 'description': md_text}, str(e))
+                        logger.error(f"Pipeline failed for page {idx}: {e}")
+                        with progress_lock:
+                            failed += 1
+                            extraction_errors.append(str(e))
+                            task_obj = Task.query.get(task_id)
+                            if task_obj:
+                                task_obj.update_progress(completed=completed, failed=failed)
+                                db.session.commit()
 
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = [
-                    executor.submit(extract_single_content, i, markdown_results.get(i, ''))
+                    executor.submit(process_single_page, i, page_pdfs[i])
                     for i in range(page_count)
                 ]
                 for future in as_completed(futures):
-                    idx, content, error = future.result()
-                    content_results[idx] = content
-                    if error:
-                        failed += 1
-                        if error != 'empty_input':
-                            extraction_errors.append(error)
-                    else:
-                        completed += 1
+                    future.result()  # propagate any unexpected exceptions
 
-                    task_obj = Task.query.get(task_id)
-                    if task_obj:
-                        task_obj.update_progress(completed=completed, failed=failed)
-                        db.session.commit()
-
-            logger.info(f"Extracted content for {completed} pages, {failed} failed")
+            logger.info(f"All pages processed: {completed} completed, {failed} failed")
 
             # Fail-fast: any extraction failure aborts the entire task
             if failed > 0:
-                # Deduplicate and take first error as reason
                 reason = extraction_errors[0] if extraction_errors else "empty page content"
                 raise ValueError(f"{failed}/{page_count} 页内容提取失败: {reason}")
 
-            # Step 4: If keep_layout, parallel caption model describe layout
-            if keep_layout:
-                logger.info("Step 4: Generating layout captions...")
-                pages_dir = project_dir / "pages"
-
-                def caption_single_layout(idx):
-                    with app.app_context():
-                        try:
-                            # Find the page image (generated during project creation)
-                            page_obj = pages[idx] if idx < len(pages) else None
-                            if not page_obj:
-                                return (idx, '', 'Page not found')
-
-                            # Try to find page image from cached or generated path
-                            image_path = None
-                            if page_obj.cached_image_path:
-                                image_path = file_service.get_absolute_path(page_obj.cached_image_path)
-                            elif page_obj.generated_image_path:
-                                image_path = file_service.get_absolute_path(page_obj.generated_image_path)
-
-                            if not image_path or not Path(image_path).exists():
-                                return (idx, '', 'No page image found')
-
-                            caption = ai_service.generate_layout_caption(image_path)
-                            return (idx, caption, None)
-                        except Exception as e:
-                            logger.error(f"Failed to generate layout caption for page {idx}: {e}")
-                            return (idx, '', str(e))
-
-                with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    futures = [
-                        executor.submit(caption_single_layout, i)
-                        for i in range(page_count)
-                    ]
-                    for future in as_completed(futures):
-                        idx, caption, error = future.result()
-                        if caption and idx in content_results:
-                            # Append layout description to page description
-                            content_results[idx]['description'] += f"\n\n{caption}"
-
-            # Step 5: Update pages with extracted content
-            logger.info("Step 5: Updating pages with extracted content...")
-            db.session.expire_all()
-
-            all_descriptions = []
-            for i in range(page_count):
-                page = Page.query.get(pages[i].id)
-                if not page:
-                    continue
-
-                content = content_results.get(i, {})
-                title = content.get('title', f'Page {i + 1}')
-                points = content.get('points', [])
-                description = content.get('description', '')
-
-                # Set outline content
-                page.set_outline_content({
-                    'title': title,
-                    'points': points
-                })
-
-                # Set description content
-                desc_content = {
-                    "text": description,
-                    "generated_at": datetime.utcnow().isoformat()
-                }
-                page.set_description_content(desc_content)
-                page.status = 'DESCRIPTION_GENERATED'
-
-                all_descriptions.append(f"--- 第{i + 1}页 ---\n{description}")
-
-            # Step 6: Update project
+            # Update project-level aggregated text
             project = Project.query.get(project_id)
             if project:
-                # Concatenate outlines so OutlineEditor can display them
                 all_outlines = []
+                all_descriptions = []
                 for i in range(page_count):
                     content = content_results.get(i, {})
                     title = content.get('title', '')
                     points = content.get('points', [])
+                    description = content.get('description', '')
                     header = f"第{i + 1}页：{title}"
                     if points:
                         all_outlines.append(f"{header}\n" + "\n".join(f"- {p}" for p in points))
                     else:
                         all_outlines.append(header)
+                    all_descriptions.append(f"--- 第{i + 1}页 ---\n{description}")
                 project.outline_text = "\n\n".join(all_outlines)
                 project.description_text = "\n\n".join(all_descriptions)
                 project.status = 'DESCRIPTIONS_GENERATED'

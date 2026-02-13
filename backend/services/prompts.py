@@ -970,6 +970,7 @@ Your task is to extract the following structured information from this slide:
 Rules:
 - Extract the title faithfully from the first heading in the markdown. Do NOT invent or rephrase it
 - Points must be extracted verbatim from the slide content, in their original order
+- In the description, 页面标题 and 页面文字 must be copied verbatim from the original text (punctuation may be normalized, but wording must be identical)
 - The description should capture ALL content on the slide including text, data, and visual element descriptions
 - If there are tables, charts, or formulas, describe them in the description under "其他页面素材"
 - Preserve the original language of the content

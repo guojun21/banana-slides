@@ -106,6 +106,9 @@ export const DetailEditor: React.FC = () => {
           });
         }
 
+        // Sync project to get latest page data (incremental updates)
+        await syncProject(projectId);
+
         if (task.status === 'COMPLETED') {
           localStorage.removeItem('renovationTaskId');
           setIsRenovationProcessing(false);
@@ -435,6 +438,12 @@ export const DetailEditor: React.FC = () => {
               ) : (
                 currentProject.pages.map((page, index) => {
                 const pageId = page.id || page.page_id;
+                // Show skeleton only if page has no description content yet
+                const hasDescription = page.description_content && (
+                  (typeof page.description_content === 'string' && page.description_content.trim()) ||
+                  (typeof page.description_content === 'object' && page.description_content.text?.trim())
+                );
+                const pageIsGenerating = isRenovationProcessing && !hasDescription;
                 return (
                   <DescriptionCard
                     key={pageId}
@@ -444,7 +453,7 @@ export const DetailEditor: React.FC = () => {
                     showToast={show}
                     onUpdate={(data) => updatePageLocal(pageId, data)}
                     onRegenerate={() => handleRegeneratePage(pageId)}
-                    isGenerating={isRenovationProcessing || (pageId ? !!pageDescriptionGeneratingTasks[pageId] : false)}
+                    isGenerating={pageIsGenerating || (pageId ? !!pageDescriptionGeneratingTasks[pageId] : false)}
                     isAiRefining={isAiRefining}
                   />
                 );
