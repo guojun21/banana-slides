@@ -958,6 +958,7 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
             # Step 3: Parallel AI extract content from each markdown
             logger.info("Step 3: Extracting structured content from markdown...")
             content_results = {}  # index -> {title, points, description}
+            extraction_errors = []  # collect error messages
             completed = 0
             failed = 0
 
@@ -982,6 +983,8 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                     content_results[idx] = content
                     if error:
                         failed += 1
+                        if error != 'empty_input':
+                            extraction_errors.append(error)
                     else:
                         completed += 1
 
@@ -994,7 +997,9 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
 
             # Fail-fast: any extraction failure aborts the entire task
             if failed > 0:
-                raise ValueError(f"{failed}/{page_count} pages failed content extraction. Aborting.")
+                # Deduplicate and take first error as reason
+                reason = extraction_errors[0] if extraction_errors else "empty page content"
+                raise ValueError(f"{failed}/{page_count} 页内容提取失败: {reason}")
 
             # Step 4: If keep_layout, parallel caption model describe layout
             if keep_layout:
