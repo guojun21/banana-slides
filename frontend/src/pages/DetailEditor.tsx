@@ -268,12 +268,6 @@ export const DetailEditor: React.FC = () => {
             </div>
             <span className="text-gray-400 hidden lg:inline">|</span>
             <span className="text-sm md:text-lg font-semibold hidden lg:inline">{t('detail.title')}</span>
-            {isRenovationProcessing && (
-              <span className="text-sm text-banana-600 dark:text-banana animate-pulse ml-2">
-                {t('detail.renovationProcessing')}
-                {renovationProgress && ` ${t('detail.renovationProgress', { completed: String(renovationProgress.completed), total: String(renovationProgress.total) })}`}
-              </span>
-            )}
           </div>
           
           {/* 中间：AI 修改输入框 */}
@@ -325,6 +319,38 @@ export const DetailEditor: React.FC = () => {
           />
         </div>
       </header>
+
+      {/* 翻新进度条 */}
+      {isRenovationProcessing && (
+        <div className="bg-white dark:bg-background-secondary border-b border-gray-200 dark:border-border-primary px-3 md:px-6 py-3 flex-shrink-0">
+          <div className="max-w-xl mx-auto">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">
+                {t('detail.renovationProcessing')}
+              </span>
+              {renovationProgress && renovationProgress.total > 0 && (
+                <span className="text-sm font-medium text-banana-600 dark:text-banana">
+                  {t('detail.renovationProgress', { completed: String(renovationProgress.completed), total: String(renovationProgress.total) })}
+                </span>
+              )}
+            </div>
+            <div className="w-full h-2.5 bg-gray-200 dark:bg-background-hover rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-banana-400 to-banana-500 rounded-full transition-all duration-500 ease-out"
+                style={{
+                  width: renovationProgress && renovationProgress.total > 0
+                    ? `${Math.round((renovationProgress.completed / renovationProgress.total) * 100)}%`
+                    : '0%',
+                  animation: !renovationProgress || renovationProgress.total === 0
+                    ? 'pulse 1.5s ease-in-out infinite'
+                    : undefined,
+                  minWidth: !renovationProgress || renovationProgress.completed === 0 ? '10%' : undefined,
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 操作栏 */}
       <div className="bg-white dark:bg-background-secondary border-b border-gray-200 dark:border-border-primary px-3 md:px-6 py-3 md:py-4 flex-shrink-0">
