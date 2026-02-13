@@ -1049,13 +1049,60 @@ export const Home: React.FC = () => {
 
           {/* 模板选择 */}
           <div className="mb-6 md:mb-8 pt-4 border-t border-gray-100 dark:border-border-primary">
-            <div className="flex items-center justify-between mb-3 md:mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3 md:mb-4">
               <div className="flex items-center gap-2">
                 <Palette size={18} className="text-orange-600 dark:text-banana flex-shrink-0" />
                 <h3 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white">
                   {t('home.template.title')}
                 </h3>
               </div>
+              {/* 从图片提取风格按钮 - 始终可见 */}
+              <button
+                type="button"
+                onClick={() => styleImageInputRef.current?.click()}
+                disabled={isExtractingStyle}
+                className="px-3 py-1.5 text-xs font-medium rounded-full border-2 border-dashed border-gray-300 dark:border-border-primary text-gray-600 dark:text-foreground-secondary hover:border-banana-400 dark:hover:border-banana hover:bg-banana-50 dark:hover:bg-background-hover transition-all duration-200 hover:shadow-sm dark:hover:shadow-none flex items-center gap-1"
+              >
+                {isExtractingStyle ? (
+                  <>
+                    <span className="animate-spin">⏳</span>
+                    提取中...
+                  </>
+                ) : (
+                  <>
+                    <ImagePlus size={12} />
+                    从图片提取风格
+                  </>
+                )}
+              </button>
+              <input
+                ref={styleImageInputRef}
+                type="file"
+                accept="image/*"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  e.target.value = '';
+                  setIsExtractingStyle(true);
+                  try {
+                    const result = await extractStyleFromImage(file);
+                    if (result.data?.style_description) {
+                      setTemplateStyle(result.data.style_description);
+                      // 自动切换到文字风格模式
+                      setUseTemplateStyle(true);
+                      setSelectedTemplate(null);
+                      setSelectedTemplateId(null);
+                      setSelectedPresetTemplateId(null);
+                      show({ message: '风格提取成功', type: 'success' });
+                    }
+                  } catch (error: any) {
+                    show({ message: `风格提取失败: ${error?.message || '未知错误'}`, type: 'error' });
+                  } finally {
+                    setIsExtractingStyle(false);
+                  }
+                }}
+                className="hidden"
+              />
               {/* 无模板图模式开关 */}
               <label className="flex items-center gap-2 cursor-pointer group">
                 <span className="text-sm text-gray-600 dark:text-foreground-tertiary group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
@@ -1137,48 +1184,6 @@ export const Home: React.FC = () => {
                       </div>
                     ))}
 
-                    {/* 从图片提取风格按钮 */}
-                    <button
-                      type="button"
-                      onClick={() => styleImageInputRef.current?.click()}
-                      disabled={isExtractingStyle}
-                      className="px-3 py-1.5 text-xs font-medium rounded-full border-2 border-dashed border-gray-300 dark:border-border-primary dark:text-foreground-secondary hover:border-banana-400 dark:hover:border-banana hover:bg-banana-50 dark:hover:bg-background-hover transition-all duration-200 hover:shadow-sm dark:hover:shadow-none flex items-center gap-1"
-                    >
-                      {isExtractingStyle ? (
-                        <>
-                          <span className="animate-spin">⏳</span>
-                          提取中...
-                        </>
-                      ) : (
-                        <>
-                          <ImagePlus size={12} />
-                          从图片提取风格
-                        </>
-                      )}
-                    </button>
-                    <input
-                      ref={styleImageInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (!file) return;
-                        e.target.value = '';
-                        setIsExtractingStyle(true);
-                        try {
-                          const result = await extractStyleFromImage(file);
-                          if (result.data?.style_description) {
-                            setTemplateStyle(result.data.style_description);
-                            show({ message: '风格提取成功', type: 'success' });
-                          }
-                        } catch (error: any) {
-                          show({ message: `风格提取失败: ${error?.message || '未知错误'}`, type: 'error' });
-                        } finally {
-                          setIsExtractingStyle(false);
-                        }
-                      }}
-                      className="hidden"
-                    />
                   </div>
                 </div>
                 
