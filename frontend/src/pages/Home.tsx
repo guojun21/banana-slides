@@ -653,7 +653,8 @@ export const Home: React.FC = () => {
       }
     } catch (error: any) {
       console.error('创建项目失败:', error);
-      // 错误已经在 store 中处理并显示
+      const msg = error?.response?.data?.error?.message || error?.message || t('home.messages.projectCreateFailed');
+      show({ message: msg, type: 'error' });
     } finally {
       setIsSubmitting(false);
     }

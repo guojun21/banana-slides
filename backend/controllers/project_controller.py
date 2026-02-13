@@ -1165,12 +1165,15 @@ def create_ppt_renovation_project():
             import fitz  # PyMuPDF
             doc = fitz.open(pdf_path)
             for i, fitz_page in enumerate(doc):
-                # Render at 2x resolution for quality
-                mat = fitz.Matrix(2, 2)
-                pix = fitz_page.get_pixmap(matrix=mat)
-                img_path = str(pages_dir / f"page_{i + 1}_original.png")
-                pix.save(img_path)
-                page_image_paths.append(img_path)
+                try:
+                    mat = fitz.Matrix(2, 2)
+                    pix = fitz_page.get_pixmap(matrix=mat)
+                    img_path = str(pages_dir / f"page_{i + 1}_original.png")
+                    pix.save(img_path)
+                    page_image_paths.append(img_path)
+                except Exception as e:
+                    logger.error(f"Failed to render page {i + 1} with PyMuPDF: {e}")
+                    page_image_paths.append(None)
             doc.close()
         except ImportError:
             # Fallback: use pdf2image
@@ -1178,13 +1181,22 @@ def create_ppt_renovation_project():
                 from pdf2image import convert_from_path
                 images = convert_from_path(pdf_path, dpi=200)
                 for i, img in enumerate(images):
-                    img_path = str(pages_dir / f"page_{i + 1}_original.png")
-                    img.save(img_path, 'PNG')
-                    page_image_paths.append(img_path)
+                    try:
+                        img_path = str(pages_dir / f"page_{i + 1}_original.png")
+                        img.save(img_path, 'PNG')
+                        page_image_paths.append(img_path)
+                    except Exception as e:
+                        logger.error(f"Failed to render page {i + 1} with pdf2image: {e}")
+                        page_image_paths.append(None)
             except ImportError:
                 raise ValueError("Neither PyMuPDF nor pdf2image is available for PDF rendering")
 
-        logger.info(f"Rendered {len(page_image_paths)} page images from PDF")
+        # Fail-fast if no pages rendered at all
+        valid_pages = [p for p in page_image_paths if p is not None]
+        if not valid_pages:
+            raise ValueError("All pages failed to render from PDF")
+
+        logger.info(f"Rendered {len(valid_pages)}/{len(page_image_paths)} page images from PDF")
 
         # Create Page records with initial images
         from services.task_manager import save_image_with_version
@@ -1192,9 +1204,13 @@ def create_ppt_renovation_project():
 
         pages_list = []
         for i, img_path in enumerate(page_image_paths):
+            if img_path is None:
+                logger.warning(f"Skipping page {i + 1}: render failed")
+                continue
+
             page = Page(
                 project_id=project_id,
-                order_index=i,
+                order_index=len(pages_list),
                 status='DRAFT'
             )
             page.set_outline_content({

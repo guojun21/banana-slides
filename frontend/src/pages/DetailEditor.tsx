@@ -18,6 +18,7 @@ const detailI18n = {
       renovationProcessing: "正在解析页面内容...",
       renovationProgress: "{{completed}}/{{total}} 页",
       renovationFailed: "PDF 解析失败，请返回重试",
+      renovationPollFailed: "与服务器通信失败，请检查网络后刷新页面重试",
       messages: {
         generateSuccess: "生成成功", generateFailed: "生成失败",
         confirmRegenerate: "部分页面已有描述，重新生成将覆盖，确定继续吗？",
@@ -41,6 +42,7 @@ const detailI18n = {
       renovationProcessing: "Parsing page content...",
       renovationProgress: "{{completed}}/{{total}} pages",
       renovationFailed: "PDF parsing failed, please go back and retry",
+      renovationPollFailed: "Lost connection to server. Please check your network and refresh the page.",
       messages: {
         generateSuccess: "Generated successfully", generateFailed: "Generation failed",
         confirmRegenerate: "Some pages already have descriptions. Regenerating will overwrite them. Continue?",
@@ -87,6 +89,7 @@ export const DetailEditor: React.FC = () => {
 
     setIsRenovationProcessing(true);
     let cancelled = false;
+    let pollFailCount = 0;
 
     const poll = async () => {
       try {
@@ -94,6 +97,7 @@ export const DetailEditor: React.FC = () => {
         if (cancelled) return;
         const task = response.data;
         if (!task) return;
+        pollFailCount = 0; // reset on success
 
         if (task.progress) {
           setRenovationProgress({
@@ -114,7 +118,7 @@ export const DetailEditor: React.FC = () => {
           localStorage.removeItem('renovationTaskId');
           setIsRenovationProcessing(false);
           setRenovationProgress(null);
-          show({ message: t('detail.renovationFailed'), type: 'error' });
+          show({ message: task.error_message || t('detail.renovationFailed'), type: 'error' });
           return;
         }
 
@@ -122,7 +126,15 @@ export const DetailEditor: React.FC = () => {
         setTimeout(poll, 2000);
       } catch (err) {
         if (cancelled) return;
+        pollFailCount++;
         console.error('Renovation task poll error:', err);
+        if (pollFailCount >= 5) {
+          localStorage.removeItem('renovationTaskId');
+          setIsRenovationProcessing(false);
+          setRenovationProgress(null);
+          show({ message: t('detail.renovationPollFailed'), type: 'error' });
+          return;
+        }
         setTimeout(poll, 3000);
       }
     };

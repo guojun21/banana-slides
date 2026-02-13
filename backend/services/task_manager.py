@@ -907,8 +907,9 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
             # Ensure page count matches
             if len(pages) != len(page_pdfs):
                 logger.warning(f"Page count mismatch: {len(pages)} pages vs {len(page_pdfs)} PDFs. Using min.")
-
             page_count = min(len(pages), len(page_pdfs))
+            if page_count == 0:
+                raise ValueError("No pages to process")
 
             task.set_progress({
                 "total": page_count,
@@ -940,13 +941,19 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                     executor.submit(parse_single_page, i, page_pdfs[i])
                     for i in range(page_count)
                 ]
+                parse_failures = 0
                 for future in as_completed(futures):
                     idx, md_text, error = future.result()
                     markdown_results[idx] = md_text
                     if error:
+                        parse_failures += 1
                         logger.warning(f"Page {idx} parse error: {error}")
 
-            logger.info(f"Parsed {len(markdown_results)} pages to markdown")
+            # Fail-fast: if all pages failed to parse, abort
+            if parse_failures == page_count:
+                raise ValueError(f"All {page_count} pages failed to parse. Cannot continue.")
+
+            logger.info(f"Parsed {len(markdown_results)} pages to markdown ({parse_failures} failed)")
 
             # Step 3: Parallel AI extract content from each markdown
             logger.info("Step 3: Extracting structured content from markdown...")
@@ -958,7 +965,7 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                 with app.app_context():
                     try:
                         if not md_text.strip():
-                            return (idx, {'title': f'Page {idx + 1}', 'points': [], 'description': ''}, None)
+                            return (idx, {'title': f'Page {idx + 1}', 'points': [], 'description': ''}, 'empty_input')
                         result = ai_service.extract_page_content(md_text, language=language)
                         return (idx, result, None)
                     except Exception as e:
@@ -984,6 +991,10 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                         db.session.commit()
 
             logger.info(f"Extracted content for {completed} pages, {failed} failed")
+
+            # Fail-fast: if more than half the pages failed AI extraction, abort
+            if failed > page_count // 2:
+                raise ValueError(f"Too many extraction failures ({failed}/{page_count}). Aborting.")
 
             # Step 4: If keep_layout, parallel caption model describe layout
             if keep_layout:
@@ -1102,12 +1113,18 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                 task.status = 'FAILED'
                 task.error_message = str(e)
                 task.completed_at = datetime.utcnow()
-                db.session.commit()
+
+            # Reset project status so user can retry
+            project = Project.query.get(project_id)
+            if project:
+                project.status = 'DRAFT'
+
+            db.session.commit()
 
 
 def export_editable_pptx_with_recursive_analysis_task(
-    task_id: str, 
-    project_id: str, 
+    task_id: str,
+    project_id: str,
     filename: str,
     file_service,
     page_ids: list = None,
