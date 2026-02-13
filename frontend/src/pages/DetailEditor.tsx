@@ -119,7 +119,7 @@ export const DetailEditor: React.FC = () => {
           setIsRenovationProcessing(false);
           setRenovationProgress(null);
           show({ message: task.error_message || t('detail.renovationFailed'), type: 'error' });
-          navigate('/');
+          setTimeout(() => navigate('/'), 2000);
           return;
         }
 
@@ -134,7 +134,7 @@ export const DetailEditor: React.FC = () => {
           setIsRenovationProcessing(false);
           setRenovationProgress(null);
           show({ message: t('detail.renovationPollFailed'), type: 'error' });
-          navigate('/');
+          setTimeout(() => navigate('/'), 2000);
           return;
         }
         setTimeout(poll, 3000);
