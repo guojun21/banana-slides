@@ -148,6 +148,14 @@ export const OutlineEditor: React.FC = () => {
     if (!project) return '';
     if (project.creation_type === 'outline') return project.outline_text || project.idea_prompt || '';
     if (project.creation_type === 'descriptions') return project.description_text || project.idea_prompt || '';
+    if (project.creation_type === 'ppt_renovation' && project.pages.length > 0) {
+      return project.pages.map((page, i) => {
+        const title = page.outline_content?.title || '';
+        const points = page.outline_content?.points || [];
+        const header = `第 ${i + 1} 页：${title}`;
+        return points.length > 0 ? `${header}\n${points.map(p => `- ${p}`).join('\n')}` : header;
+      }).join('\n\n');
+    }
     return project.idea_prompt || '';
   }, []);
 
@@ -156,11 +164,10 @@ export const OutlineEditor: React.FC = () => {
   const [isSavingInput, setIsSavingInput] = useState(false);
 
   useEffect(() => {
-    if (currentProject) {
+    if (currentProject && !isInputDirty) {
       setInputText(getInputText(currentProject));
-      setIsInputDirty(false);
     }
-  }, [currentProject?.id]);
+  }, [currentProject?.id, currentProject?.pages?.length]);
 
   const handleSaveInputText = useCallback(async () => {
     if (!projectId || !currentProject || !isInputDirty) return;
