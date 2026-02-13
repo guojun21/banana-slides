@@ -133,7 +133,7 @@ const homeI18n = {
         idea: 'Enter your idea, AI will generate a complete PPT for you',
         outline: 'Have an outline? Paste it directly, AI will split it into a structured outline',
         description: 'Have detailed descriptions? AI will parse and generate images directly, skipping the outline step',
-        ppt_renovation: 'Upload an existing PDF/PPTX file, AI will parse its content and regenerate with a fresh style',
+        ppt_renovation: 'Upload an existing PDF/PPTX file, AI will parse its content and regenerate the renovated PPT',
       },
       placeholders: {
         idea: 'e.g., Generate a presentation about the history of AI',
