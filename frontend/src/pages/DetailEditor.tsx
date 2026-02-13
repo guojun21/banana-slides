@@ -332,9 +332,9 @@ export const DetailEditor: React.FC = () => {
         </div>
       </header>
 
-      {/* 翻新进度条 */}
-      {isRenovationProcessing && (
-        <div className="bg-white dark:bg-background-secondary border-b border-gray-200 dark:border-border-primary px-3 md:px-6 py-3 flex-shrink-0">
+      {/* 操作栏 */}
+      <div className="bg-white dark:bg-background-secondary border-b border-gray-200 dark:border-border-primary px-3 md:px-6 py-3 md:py-4 flex-shrink-0">
+        {isRenovationProcessing ? (
           <div className="max-w-xl mx-auto">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-sm font-medium text-gray-700 dark:text-foreground-secondary">
@@ -361,18 +361,13 @@ export const DetailEditor: React.FC = () => {
               />
             </div>
           </div>
-        </div>
-      )}
-
-      {/* 操作栏 */}
-      <div className="bg-white dark:bg-background-secondary border-b border-gray-200 dark:border-border-primary px-3 md:px-6 py-3 md:py-4 flex-shrink-0">
+        ) : (
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-center gap-2 sm:gap-3 flex-1">
             <Button
               variant="primary"
               icon={<Sparkles size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={handleGenerateAll}
-              disabled={isRenovationProcessing}
               className="flex-1 sm:flex-initial text-sm md:text-base"
             >
               {t('detail.batchGenerate')}
@@ -381,7 +376,7 @@ export const DetailEditor: React.FC = () => {
               variant="secondary"
               icon={<Download size={16} className="md:w-[18px] md:h-[18px]" />}
               onClick={handleExportDescriptions}
-              disabled={!currentProject.pages.some(p => p.description_content) || isRenovationProcessing}
+              disabled={!currentProject.pages.some(p => p.description_content)}
               className="flex-1 sm:flex-initial text-sm md:text-base"
             >
               {t('detail.export')}
@@ -392,6 +387,7 @@ export const DetailEditor: React.FC = () => {
             </span>
           </div>
         </div>
+        )}
       </div>
 
       {/* 主内容区 */}
