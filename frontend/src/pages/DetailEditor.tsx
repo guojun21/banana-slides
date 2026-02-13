@@ -15,7 +15,7 @@ const detailI18n = {
       noPagesHint: "请先返回大纲编辑页添加页面", backToOutline: "返回大纲编辑",
       aiPlaceholder: "例如：让描述更详细、删除第2页的某个要点、强调XXX的重要性... · Ctrl+Enter提交",
       aiPlaceholderShort: "例如：让描述更详细... · Ctrl+Enter",
-      renovationProcessing: "正在解析 PDF 内容...",
+      renovationProcessing: "正在解析页面内容...",
       renovationProgress: "{{completed}}/{{total}} 页",
       renovationFailed: "PDF 解析失败，请返回重试",
       messages: {
@@ -38,7 +38,7 @@ const detailI18n = {
       noPagesHint: "Please go back to outline editor to add pages first", backToOutline: "Back to Outline Editor",
       aiPlaceholder: "e.g., Make descriptions more detailed, remove a point from page 2, emphasize XXX... · Ctrl+Enter to submit",
       aiPlaceholderShort: "e.g., Make descriptions more detailed... · Ctrl+Enter",
-      renovationProcessing: "Parsing PDF content...",
+      renovationProcessing: "Parsing page content...",
       renovationProgress: "{{completed}}/{{total}} pages",
       renovationFailed: "PDF parsing failed, please go back and retry",
       messages: {
