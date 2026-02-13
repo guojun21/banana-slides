@@ -75,7 +75,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal } from '@/components/shared';
+import { Button, Loading, useConfirm, useToast, AiRefineInput, FilePreviewModal, ReferenceFileList } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { OutlineCard } from '@/components/outline/OutlineCard';
 import { useProjectStore } from '@/store/useProjectStore';
@@ -487,6 +487,11 @@ export const OutlineEditor: React.FC = () => {
                 className="border-0 rounded-none shadow-none"
               />
             </div>
+            <ReferenceFileList
+              projectId={projectId}
+              onFileClick={setPreviewFileId}
+              className="mt-3"
+            />
           </div>
         </div>
 
@@ -530,6 +535,11 @@ export const OutlineEditor: React.FC = () => {
               className="border-0 rounded-none shadow-none"
             />
           </div>
+          <ReferenceFileList
+            projectId={projectId}
+            onFileClick={setPreviewFileId}
+            className="mt-3"
+          />
         </div>
 
         {/* 右侧：大纲列表 */}

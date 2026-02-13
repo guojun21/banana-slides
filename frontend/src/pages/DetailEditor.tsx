@@ -52,7 +52,7 @@ const detailI18n = {
     }
   }
 };
-import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal } from '@/components/shared';
+import { Button, Loading, useToast, useConfirm, AiRefineInput, FilePreviewModal, ReferenceFileList } from '@/components/shared';
 import { DescriptionCard } from '@/components/preview/DescriptionCard';
 import { useProjectStore } from '@/store/useProjectStore';
 import { refineDescriptions, getTaskStatus } from '@/api/endpoints';
@@ -385,6 +385,11 @@ export const DetailEditor: React.FC = () => {
       {/* 主内容区 */}
       <main className="flex-1 p-3 md:p-6 overflow-y-auto min-h-0">
         <div className="max-w-7xl mx-auto">
+          <ReferenceFileList
+            projectId={projectId}
+            onFileClick={setPreviewFileId}
+            className="mb-4"
+          />
           {currentProject.pages.length === 0 && !isRenovationProcessing ? (
             <div className="text-center py-12 md:py-20">
               <div className="flex justify-center mb-4"><FileText size={48} className="text-gray-300" /></div>

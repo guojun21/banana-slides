@@ -47,7 +47,7 @@ const homeI18n = {
         idea: '输入你的想法，AI 将为你生成完整的 PPT',
         outline: '已有大纲？直接粘贴，AI 将自动切分为结构化大纲',
         description: '已有完整描述？AI 将自动解析并直接生成图片，跳过大纲步骤',
-        ppt_renovation: '上传已有的 PDF/PPTX 文件，AI 将解析内容并重新生成全新风格的 PPT',
+        ppt_renovation: '上传已有的 PDF/PPTX 文件，AI 将解析内容并重新生成翻新后的PPT',
       },
       placeholders: {
         idea: '例如：生成一份关于 AI 发展史的演讲 PPT',
