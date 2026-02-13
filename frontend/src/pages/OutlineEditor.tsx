@@ -20,8 +20,8 @@ const outlineI18n = {
       aiPlaceholder: "例如：增加一页关于XXX的内容、删除第3页、合并前两页... · Ctrl+Enter提交",
       aiPlaceholderShort: "例如：增加/删除页面... · Ctrl+Enter",
       contextLabels: { idea: "PPT构想", outline: "大纲", description: "描述" },
-      inputLabel: { idea: "PPT 构想", outline: "原始大纲", description: "页面描述" },
-      inputPlaceholder: { idea: "输入你的 PPT 构想...", outline: "输入大纲内容...", description: "输入页面描述..." },
+      inputLabel: { idea: "PPT 构想", outline: "原始大纲", description: "页面描述", ppt_renovation: "原始 PPT 内容" },
+      inputPlaceholder: { idea: "输入你的 PPT 构想...", outline: "输入大纲内容...", description: "输入页面描述...", ppt_renovation: "已从 PDF 中提取内容" },
       messages: {
         outlineEmpty: "大纲不能为空", generateSuccess: "描述生成完成", generateFailed: "生成描述失败",
         confirmRegenerate: "已有大纲内容，重新生成将覆盖现有内容，确定继续吗？",
@@ -48,8 +48,8 @@ const outlineI18n = {
       aiPlaceholder: "e.g., Add a page about XXX, delete page 3, merge first two pages... · Ctrl+Enter to submit",
       aiPlaceholderShort: "e.g., Add/delete pages... · Ctrl+Enter",
       contextLabels: { idea: "PPT Idea", outline: "Outline", description: "Description" },
-      inputLabel: { idea: "PPT Idea", outline: "Original Outline", description: "Page Descriptions" },
-      inputPlaceholder: { idea: "Enter your PPT idea...", outline: "Enter outline content...", description: "Enter page descriptions..." },
+      inputLabel: { idea: "PPT Idea", outline: "Original Outline", description: "Page Descriptions", ppt_renovation: "Original PPT Content" },
+      inputPlaceholder: { idea: "Enter your PPT idea...", outline: "Enter outline content...", description: "Enter page descriptions...", ppt_renovation: "Content extracted from PDF" },
       messages: {
         outlineEmpty: "Outline cannot be empty", generateSuccess: "Descriptions generated successfully", generateFailed: "Failed to generate descriptions",
         confirmRegenerate: "Existing outline will be overwritten. Continue?",

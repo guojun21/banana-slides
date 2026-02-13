@@ -1233,9 +1233,19 @@ def create_ppt_renovation_project():
         # Get services
         ai_service = get_ai_service()
         from services.file_parser_service import FileParserService
-        file_parser_service = FileParserService()
+        file_parser_service = FileParserService(
+            mineru_token=current_app.config['MINERU_TOKEN'],
+            mineru_api_base=current_app.config['MINERU_API_BASE'],
+            google_api_key=current_app.config.get('GOOGLE_API_KEY', ''),
+            google_api_base=current_app.config.get('GOOGLE_API_BASE', ''),
+            openai_api_key=current_app.config.get('OPENAI_API_KEY', ''),
+            openai_api_base=current_app.config.get('OPENAI_API_BASE', ''),
+            image_caption_model=current_app.config['IMAGE_CAPTION_MODEL'],
+            provider_format=current_app.config.get('AI_PROVIDER_FORMAT', 'gemini'),
+            lazyllm_image_caption_source=current_app.config.get('IMAGE_CAPTION_MODEL_SOURCE', 'doubao'),
+        )
 
-        language = request.form.get('language', get_user_config('OUTPUT_LANGUAGE', 'zh'))
+        language = request.form.get('language', current_app.config.get('OUTPUT_LANGUAGE', 'zh'))
         app = current_app._get_current_object()
 
         # Submit async task
