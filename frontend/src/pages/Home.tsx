@@ -5,7 +5,7 @@ import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb,
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, verifyApiKey, createPptRenovationProject, extractStyleFromImage } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, createPptRenovationProject, extractStyleFromImage } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useTheme } from '@/hooks/useTheme';
 import { useImagePaste } from '@/hooks/useImagePaste';
@@ -214,7 +214,7 @@ export const Home: React.FC = () => {
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [isFileSelectorOpen, setIsFileSelectorOpen] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
-  const [isVerifying, setIsVerifying] = useState(false);
+
   const [useTemplateStyle, setUseTemplateStyle] = useState(false);
   const [templateStyle, setTemplateStyle] = useState('');
   const [hoveredPresetId, setHoveredPresetId] = useState<string | null>(null);
@@ -544,23 +544,6 @@ export const Home: React.FC = () => {
         type: 'info'
       });
       return;
-    }
-
-    // 验证 API 配置
-    setIsVerifying(true);
-    try {
-      const verifyResult = await verifyApiKey();
-      if (!verifyResult.data?.available) {
-        show({ message: verifyResult.data?.message || t('home.messages.verifyFailed'), type: 'error' });
-        navigate('/settings');
-        return;
-      }
-    } catch {
-      show({ message: t('home.messages.verifyFailed'), type: 'error' });
-      navigate('/settings');
-      return;
-    } finally {
-      setIsVerifying(false);
     }
 
     try {
@@ -990,11 +973,11 @@ export const Home: React.FC = () => {
                   <Button
                     size="sm"
                     onClick={handleSubmit}
-                    loading={isGlobalLoading || isVerifying}
-                    disabled={!renovationFile || isVerifying}
+                    loading={isGlobalLoading}
+                    disabled={!renovationFile}
                     className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"
                   >
-                    {isVerifying ? t('home.messages.verifying') : t('common.next')}
+                    {t('common.next')}
                   </Button>
                 </div>
               </div>
@@ -1022,18 +1005,15 @@ export const Home: React.FC = () => {
                 <Button
                   size="sm"
                   onClick={handleSubmit}
-                  loading={isGlobalLoading || isVerifying}
+                  loading={isGlobalLoading}
                   disabled={
                     !content.trim() ||
                     isUploadingImage ||
-                    isVerifying ||
                     referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
                   }
                   className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"
                 >
-                  {isVerifying
-                    ? t('home.messages.verifying')
-                    : referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
+                  {referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
                     ? t('home.actions.parsing')
                     : t('common.next')}
                 </Button>
