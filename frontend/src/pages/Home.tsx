@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown } from 'lucide-react';
+import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb, Search, Settings, FolderOpen, HelpCircle, Sun, Moon, Globe, Monitor, ChevronDown, Upload, RefreshCw } from 'lucide-react';
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, listProjects } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, verifyApiKey, createPptRenovationProject, extractStyleFromImage } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useTheme } from '@/hooks/useTheme';
 import { useImagePaste } from '@/hooks/useImagePaste';
@@ -13,7 +13,7 @@ import { useT } from '@/hooks/useT';
 import { PRESET_STYLES } from '@/config/presetStyles';
 import { presetStylesI18n } from '@/config/presetStylesI18n';
 
-type CreationType = 'idea' | 'outline' | 'description';
+type CreationType = 'idea' | 'outline' | 'description' | 'ppt_renovation';
 
 // 页面特有翻译 - AI 可以直接看到所有文案，保留原始 key 结构
 const homeI18n = {
@@ -41,11 +41,13 @@ const homeI18n = {
         idea: '一句话生成',
         outline: '从大纲生成',
         description: '从描述生成',
+        ppt_renovation: 'PPT 翻新',
       },
       tabDescriptions: {
         idea: '输入你的想法，AI 将为你生成完整的 PPT',
         outline: '已有大纲？直接粘贴，AI 将自动切分为结构化大纲',
         description: '已有完整描述？AI 将自动解析并直接生成图片，跳过大纲步骤',
+        ppt_renovation: '上传已有的 PDF/PPTX 文件，AI 将解析内容并重新生成全新风格的 PPT',
       },
       placeholders: {
         idea: '例如：生成一份关于 AI 发展史的演讲 PPT',
@@ -83,6 +85,8 @@ const homeI18n = {
         filesAdded: '已添加 {{count}} 个参考文件',
         imageRemoved: '已移除图片',
         serviceTestTip: '建议先到设置页底部进行服务测试，避免后续功能异常',
+        verifying: '正在验证 API 配置...',
+        verifyFailed: '请在设置页配置正确的 API Key，并在页面底部点击「服务测试」验证',
       },
     },
   },
@@ -110,11 +114,13 @@ const homeI18n = {
         idea: 'From Idea',
         outline: 'From Outline',
         description: 'From Description',
+        ppt_renovation: 'PPT Renovation',
       },
       tabDescriptions: {
         idea: 'Enter your idea, AI will generate a complete PPT for you',
         outline: 'Have an outline? Paste it directly, AI will split it into a structured outline',
         description: 'Have detailed descriptions? AI will parse and generate images directly, skipping the outline step',
+        ppt_renovation: 'Upload an existing PDF/PPTX file, AI will parse its content and regenerate with a fresh style',
       },
       placeholders: {
         idea: 'e.g., Generate a presentation about the history of AI',
@@ -152,6 +158,8 @@ const homeI18n = {
         filesAdded: 'Added {{count}} reference file(s)',
         imageRemoved: 'Image removed',
         serviceTestTip: 'Test services in Settings first to avoid issues',
+        verifying: 'Verifying API configuration...',
+        verifyFailed: 'Please configure a valid API Key in Settings and click "Service Test" at the bottom to verify',
       },
     },
   },
@@ -180,11 +188,28 @@ export const Home: React.FC = () => {
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [isFileSelectorOpen, setIsFileSelectorOpen] = useState(false);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
   const [useTemplateStyle, setUseTemplateStyle] = useState(false);
   const [templateStyle, setTemplateStyle] = useState('');
   const [hoveredPresetId, setHoveredPresetId] = useState<string | null>(null);
+  const [renovationFile, setRenovationFile] = useState<File | null>(null);
+  const [keepLayout, setKeepLayout] = useState(false);
+  const [isExtractingStyle, setIsExtractingStyle] = useState(false);
+  const renovationFileInputRef = useRef<HTMLInputElement>(null);
+  const styleImageInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
+
+  // 持久化草稿到 sessionStorage，确保跳转设置页后返回时内容不丢失
+  useEffect(() => {
+    if (content) {
+      sessionStorage.setItem('home-draft-content', content);
+    }
+  }, [content]);
+
+  useEffect(() => {
+    sessionStorage.setItem('home-draft-tab', activeTab);
+  }, [activeTab]);
 
   // 检查是否有当前项目 & 加载用户模板
   useEffect(() => {
@@ -434,6 +459,13 @@ export const Home: React.FC = () => {
       description: t('home.tabDescriptions.description'),
       example: t('home.examples.description'),
     },
+    ppt_renovation: {
+      icon: <RefreshCw size={20} />,
+      label: t('home.tabs.ppt_renovation'),
+      placeholder: '',
+      description: t('home.tabDescriptions.ppt_renovation'),
+      example: null as string | null,
+    },
   };
 
   const handleTemplateSelect = async (templateFile: File | null, templateId?: string) => {
@@ -465,7 +497,13 @@ export const Home: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    if (!content.trim()) {
+    // For ppt_renovation, validate file instead of content
+    if (activeTab === 'ppt_renovation') {
+      if (!renovationFile) {
+        show({ message: '请先上传 PDF 或 PPTX 文件', type: 'error' });
+        return;
+      }
+    } else if (!content.trim()) {
       show({ message: t('home.messages.enterContent'), type: 'error' });
       return;
     }
@@ -482,7 +520,54 @@ export const Home: React.FC = () => {
       return;
     }
 
+    // 验证 API 配置
+    setIsVerifying(true);
     try {
+      const verifyResult = await verifyApiKey();
+      if (!verifyResult.data?.available) {
+        show({ message: verifyResult.data?.message || t('home.messages.verifyFailed'), type: 'error' });
+        navigate('/settings');
+        return;
+      }
+    } catch {
+      show({ message: t('home.messages.verifyFailed'), type: 'error' });
+      navigate('/settings');
+      return;
+    } finally {
+      setIsVerifying(false);
+    }
+
+    try {
+      // PPT 翻新模式：走独立的上传+异步解析流程
+      if (activeTab === 'ppt_renovation' && renovationFile) {
+        const styleDesc = templateStyle.trim() ? templateStyle.trim() : undefined;
+        const result = await createPptRenovationProject(renovationFile, {
+          keepLayout,
+          templateStyle: styleDesc,
+        });
+
+        const projectId = result.data?.project_id;
+        const taskId = result.data?.task_id;
+        if (!projectId) {
+          show({ message: t('home.messages.projectCreateFailed'), type: 'error' });
+          return;
+        }
+
+        // Save project ID and task ID for OutlineEditor to poll
+        localStorage.setItem('currentProjectId', projectId);
+        if (taskId) {
+          localStorage.setItem('renovationTaskId', taskId);
+        }
+
+        // Clear draft
+        sessionStorage.removeItem('home-draft-content');
+        sessionStorage.removeItem('home-draft-tab');
+
+        // Navigate to outline editor (will poll for task completion)
+        navigate(`/project/${projectId}/outline`);
+        return;
+      }
+
       // 如果有模板ID但没有File，按需加载
       let templateFile = selectedTemplate;
       if (!templateFile && (selectedTemplateId || selectedPresetTemplateId)) {
@@ -500,7 +585,7 @@ export const Home: React.FC = () => {
         .filter(f => f.parse_status === 'completed')
         .map(f => f.id);
 
-      await initializeProject(activeTab, content, templateFile || undefined, styleDesc, refFileIds.length > 0 ? refFileIds : undefined);
+      await initializeProject(activeTab as 'idea' | 'outline' | 'description', content, templateFile || undefined, styleDesc, refFileIds.length > 0 ? refFileIds : undefined);
       
       // 根据类型跳转到不同页面
       const projectId = localStorage.getItem('currentProjectId');
@@ -807,6 +892,87 @@ export const Home: React.FC = () => {
 
           {/* 输入区 - 带工具栏 */}
           <div className="mb-2">
+            {activeTab === 'ppt_renovation' ? (
+              /* PPT 翻新：文件上传区 */
+              <div className="space-y-4">
+                <div
+                  className="border-2 border-dashed border-gray-300 dark:border-border-primary rounded-xl p-8 text-center cursor-pointer hover:border-banana-400 dark:hover:border-banana transition-colors duration-200"
+                  onClick={() => renovationFileInputRef.current?.click()}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const file = e.dataTransfer.files[0];
+                    if (file && (file.name.toLowerCase().endsWith('.pdf') || file.name.toLowerCase().endsWith('.pptx') || file.name.toLowerCase().endsWith('.ppt'))) {
+                      setRenovationFile(file);
+                    } else {
+                      show({ message: '仅支持 PDF 和 PPTX 文件', type: 'error' });
+                    }
+                  }}
+                >
+                  {renovationFile ? (
+                    <div className="flex items-center justify-center gap-3">
+                      <FileText size={24} className="text-banana-600 dark:text-banana" />
+                      <div className="text-left">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">{renovationFile.name}</p>
+                        <p className="text-xs text-gray-500 dark:text-foreground-tertiary">{(renovationFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setRenovationFile(null); }}
+                        className="ml-2 text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Upload size={32} className="mx-auto text-gray-400 dark:text-foreground-tertiary" />
+                      <p className="text-sm text-gray-600 dark:text-foreground-secondary">点击或拖拽上传 PDF / PPTX 文件</p>
+                      <p className="text-xs text-gray-400 dark:text-foreground-tertiary">支持 .pdf, .pptx, .ppt 格式</p>
+                    </div>
+                  )}
+                </div>
+                <input
+                  ref={renovationFileInputRef}
+                  type="file"
+                  accept=".pdf,.pptx,.ppt"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) setRenovationFile(file);
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                />
+
+                {/* 保留布局 toggle */}
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <span className="text-sm text-gray-600 dark:text-foreground-tertiary group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
+                      保留原始排版布局
+                    </span>
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={keepLayout}
+                        onChange={(e) => setKeepLayout(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 dark:bg-background-hover peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-banana-300 dark:peer-focus:ring-banana/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white dark:after:bg-foreground-secondary after:border-gray-300 dark:after:border-border-hover after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-banana"></div>
+                    </div>
+                  </label>
+                  <Button
+                    size="sm"
+                    onClick={handleSubmit}
+                    loading={isGlobalLoading || isVerifying}
+                    disabled={!renovationFile || isVerifying}
+                    className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"
+                  >
+                    {isVerifying ? t('home.messages.verifying') : t('common.next')}
+                  </Button>
+                </div>
+              </div>
+            ) : (
             <MarkdownTextarea
               ref={textareaRef}
               placeholder={tabConfig[activeTab].placeholder}
@@ -830,20 +996,24 @@ export const Home: React.FC = () => {
                 <Button
                   size="sm"
                   onClick={handleSubmit}
-                  loading={isGlobalLoading}
+                  loading={isGlobalLoading || isVerifying}
                   disabled={
                     !content.trim() ||
                     isUploadingImage ||
+                    isVerifying ||
                     referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
                   }
                   className="shadow-sm dark:shadow-background-primary/30 text-xs md:text-sm px-3 md:px-4"
                 >
-                  {referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
+                  {isVerifying
+                    ? t('home.messages.verifying')
+                    : referenceFiles.some(f => f.parse_status === 'pending' || f.parse_status === 'parsing')
                     ? t('home.actions.parsing')
                     : t('common.next')}
                 </Button>
               }
             />
+            )}
           </div>
 
           {/* 隐藏的文件输入 */}
@@ -928,7 +1098,7 @@ export const Home: React.FC = () => {
                         >
                           {t(preset.nameKey)}
                         </button>
-                        
+
                         {/* 悬停时显示预览图片 */}
                         {hoveredPresetId === preset.id && preset.previewImage && (
                           <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
@@ -954,6 +1124,49 @@ export const Home: React.FC = () => {
                         )}
                       </div>
                     ))}
+
+                    {/* 从图片提取风格按钮 */}
+                    <button
+                      type="button"
+                      onClick={() => styleImageInputRef.current?.click()}
+                      disabled={isExtractingStyle}
+                      className="px-3 py-1.5 text-xs font-medium rounded-full border-2 border-dashed border-gray-300 dark:border-border-primary dark:text-foreground-secondary hover:border-banana-400 dark:hover:border-banana hover:bg-banana-50 dark:hover:bg-background-hover transition-all duration-200 hover:shadow-sm dark:hover:shadow-none flex items-center gap-1"
+                    >
+                      {isExtractingStyle ? (
+                        <>
+                          <span className="animate-spin">⏳</span>
+                          提取中...
+                        </>
+                      ) : (
+                        <>
+                          <ImagePlus size={12} />
+                          从图片提取风格
+                        </>
+                      )}
+                    </button>
+                    <input
+                      ref={styleImageInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        e.target.value = '';
+                        setIsExtractingStyle(true);
+                        try {
+                          const result = await extractStyleFromImage(file);
+                          if (result.data?.style_description) {
+                            setTemplateStyle(result.data.style_description);
+                            show({ message: '风格提取成功', type: 'success' });
+                          }
+                        } catch (error: any) {
+                          show({ message: `风格提取失败: ${error?.message || '未知错误'}`, type: 'error' });
+                        } finally {
+                          setIsExtractingStyle(false);
+                        }
+                      }}
+                      className="hidden"
+                    />
                   </div>
                 </div>
                 
