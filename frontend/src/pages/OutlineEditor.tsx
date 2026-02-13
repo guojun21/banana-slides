@@ -28,8 +28,6 @@ const outlineI18n = {
         confirmRegenerateTitle: "确认重新生成", refineSuccess: "大纲修改成功",
         refineFailed: "修改失败，请稍后重试", exportSuccess: "导出成功",
         loadingProject: "加载项目中...", generatingOutline: "生成大纲中...",
-        renovationProcessing: "正在解析 PDF 内容...", renovationProgress: "已完成 {{completed}}/{{total}} 页",
-        renovationFailed: "PDF 解析失败，请返回重试"
       }
     }
   },
@@ -56,8 +54,6 @@ const outlineI18n = {
         confirmRegenerateTitle: "Confirm Regenerate", refineSuccess: "Outline modified successfully",
         refineFailed: "Modification failed, please try again", exportSuccess: "Export successful",
         loadingProject: "Loading project...", generatingOutline: "Generating outline...",
-        renovationProcessing: "Parsing PDF content...", renovationProgress: "Completed {{completed}}/{{total}} pages",
-        renovationFailed: "PDF parsing failed, please go back and retry"
       }
     }
   }
@@ -583,7 +579,6 @@ export const OutlineEditor: React.FC = () => {
       </main>
       {ConfirmDialog}
       <ToastContainer />
-
       <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
     </div>
   );
