@@ -5,7 +5,7 @@ import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb,
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, listProjects, verifyApiKey } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, listProjects } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useTheme } from '@/hooks/useTheme';
 import { useImagePaste } from '@/hooks/useImagePaste';
@@ -553,37 +553,6 @@ export const Home: React.FC = () => {
     }
 
     try {
-      // 在创建项目前先验证 API key 是否可用（sponsor 分支特性）
-      try {
-        const verifyResult = await verifyApiKey();
-        if (!verifyResult.data.available) {
-          // API key 不可用，保存草稿后跳转到设置页
-          sessionStorage.setItem('home-draft-content', content);
-          sessionStorage.setItem('home-draft-tab', activeTab);
-          show({
-            message: verifyResult.data.message || 'API key 不可用，请在设置中配置',
-            type: 'error'
-          });
-          setTimeout(() => {
-            navigate('/settings');
-          }, 2000);
-          return;
-        }
-      } catch (error: any) {
-        // 验证接口调用失败，保存草稿后跳转到设置页
-        sessionStorage.setItem('home-draft-content', content);
-        sessionStorage.setItem('home-draft-tab', activeTab);
-        console.error('验证 API key 失败:', error);
-        show({
-          message: '无法验证 API 配置，请检查网络连接或在设置中确认配置',
-          type: 'error'
-        });
-        setTimeout(() => {
-          navigate('/settings');
-        }, 2000);
-        return;
-      }
-
       // 如果有模板ID但没有File，按需加载
       let templateFile = selectedTemplate;
       if (!templateFile && (selectedTemplateId || selectedPresetTemplateId)) {
