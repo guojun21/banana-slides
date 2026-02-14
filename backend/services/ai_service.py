@@ -498,6 +498,30 @@ class AIService:
                     loaded.append(img)
         return loaded
 
+    @staticmethod
+    def _resolve_safe_local_path(ref_path: str) -> Optional[str]:
+        """
+        将 /files/ 开头的路径安全地解析为本地文件路径。
+        统一处理 path traversal 校验，确保结果在 UPLOAD_FOLDER 内。
+
+        Returns:
+            安全的本地路径，校验失败返回 None
+        """
+        upload_folder = os.environ.get('UPLOAD_FOLDER', '')
+        if not upload_folder:
+            logger.warning("UPLOAD_FOLDER not configured, rejecting file path")
+            return None
+
+        abs_upload = os.path.abspath(upload_folder)
+        relative_path = ref_path[len('/files/'):].lstrip('/')
+        local_path = os.path.abspath(os.path.join(abs_upload, relative_path))
+
+        if not local_path.startswith(abs_upload + os.sep) and local_path != abs_upload:
+            logger.warning(f"Path traversal attempt blocked: {ref_path}")
+            return None
+
+        return local_path if os.path.exists(local_path) else None
+
     def _load_image_from_ref(self, ref_img: str) -> Optional[Image.Image]:
         """从路径或 URL 加载单张图片（仅允许 /files/ 路径和 http(s) URL）"""
         if ref_img.startswith('http://') or ref_img.startswith('https://'):
@@ -506,25 +530,23 @@ class AIService:
                 logger.warning(f"Failed to download image from URL: {ref_img}, skipping...")
             return downloaded_img
         elif ref_img.startswith('/files/mineru/'):
+            # Try prefix-matching first, then fall back to safe path resolution
             local_path = self._convert_mineru_path_to_local(ref_img)
+            if not local_path:
+                local_path = self._resolve_safe_local_path(ref_img)
             if local_path and os.path.exists(local_path):
                 logger.debug(f"Loaded MinerU image from local path: {local_path}")
                 return Image.open(local_path)
             else:
-                logger.warning(f"MinerU image file not found (with prefix matching): {ref_img}, skipping...")
+                logger.warning(f"MinerU image file not found: {ref_img}, skipping...")
                 return None
         elif ref_img.startswith('/files/'):
-            upload_folder = os.environ.get('UPLOAD_FOLDER', '')
-            relative_path = ref_img[len('/files/'):].lstrip('/')
-            local_path = os.path.abspath(os.path.join(upload_folder, relative_path))
-            if not local_path.startswith(os.path.abspath(upload_folder)):
-                logger.warning(f"Path traversal attempt blocked: {ref_img}, skipping...")
-                return None
-            elif os.path.exists(local_path):
+            local_path = self._resolve_safe_local_path(ref_img)
+            if local_path:
                 logger.debug(f"Loaded image from local path: {local_path}")
                 return Image.open(local_path)
             else:
-                logger.warning(f"Local file not found: {local_path} (from {ref_img}), skipping...")
+                logger.warning(f"File not found or blocked: {ref_img}, skipping...")
                 return None
         else:
             logger.warning(f"Invalid image reference: {ref_img}, skipping...")
