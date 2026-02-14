@@ -498,6 +498,19 @@ class AIService:
         return loaded
 
     @staticmethod
+    def _validate_path_in_upload_folder(local_path: str) -> Optional[str]:
+        """校验已解析的本地路径是否在 UPLOAD_FOLDER 内，防止路径遍历。"""
+        upload_folder = os.environ.get('UPLOAD_FOLDER', '')
+        if not upload_folder:
+            return None
+        abs_upload = os.path.abspath(upload_folder)
+        abs_path = os.path.abspath(local_path)
+        if not abs_path.startswith(abs_upload + os.sep) and abs_path != abs_upload:
+            logger.warning(f"Path traversal attempt blocked: {local_path}")
+            return None
+        return abs_path if os.path.exists(abs_path) else None
+
+    @staticmethod
     def _resolve_safe_local_path(ref_path: str) -> Optional[str]:
         """
         将 /files/ 开头的路径安全地解析为本地文件路径。
@@ -513,13 +526,9 @@ class AIService:
 
         abs_upload = os.path.abspath(upload_folder)
         relative_path = ref_path[len('/files/'):].lstrip('/')
-        local_path = os.path.abspath(os.path.join(abs_upload, relative_path))
+        local_path = os.path.join(abs_upload, relative_path)
 
-        if not local_path.startswith(abs_upload + os.sep) and local_path != abs_upload:
-            logger.warning(f"Path traversal attempt blocked: {ref_path}")
-            return None
-
-        return local_path if os.path.exists(local_path) else None
+        return AIService._validate_path_in_upload_folder(local_path)
 
     def _load_image_from_ref(self, ref_img: str) -> Optional[Image.Image]:
         """从路径或 URL 加载单张图片（仅允许 /files/ 路径和 http(s) URL）"""
@@ -531,6 +540,9 @@ class AIService:
         elif ref_img.startswith('/files/mineru/'):
             # Try prefix-matching first, then fall back to safe path resolution
             local_path = self._convert_mineru_path_to_local(ref_img)
+            # Validate mineru result against UPLOAD_FOLDER (prevent traversal)
+            if local_path:
+                local_path = self._validate_path_in_upload_folder(local_path)
             if not local_path:
                 local_path = self._resolve_safe_local_path(ref_img)
             if local_path and os.path.exists(local_path):

@@ -431,17 +431,17 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
 [[template_image:以下是模板参考图片（用于风格参考）：]]
 
 [[material_images:以下是素材图片：]]
-{when(has_material, chr(10) + "这些素材图片是可供挑选和使用的元素，你可以从中选择合适的图片、图标、图表或其他视觉元素直接整合到生成的PPT页面中。请根据页面内容的需要，智能地选择和组合这些素材。")}
+{when(has_material, "\n这些素材图片是可供挑选和使用的元素，你可以从中选择合适的图片、图标、图表或其他视觉元素直接整合到生成的PPT页面中。请根据页面内容的需要，智能地选择和组合这些素材。")}
 
 <design_guidelines>
 - 要求文字清晰锐利, 画面为4K分辨率，16:9比例。
 {when(has_template, "- 配色和设计语言和模板图片严格相似。")}{when(not has_template, "- 严格按照风格描述进行设计。")}
 - 根据内容自动设计最完美的构图，不重不漏地渲染"页面描述"中的文本。
 - 如非必要，禁止出现 markdown 格式符号（如 # 和 * 等）。
-{when(has_template, "- 只参考风格设计，禁止出现模板中的文字。" + chr(10))}- 使用大小恰当的装饰性图形或插画对空缺位置进行填补。
+{when(has_template, "- 只参考风格设计，禁止出现模板中的文字。\n")}- 使用大小恰当的装饰性图形或插画对空缺位置进行填补。
 </design_guidelines>
 {get_ppt_language_instruction(language)}
-{when(has_extra, chr(10) + "额外要求（请务必遵循）：" + chr(10) + (extra_requirements or "") + chr(10))}
+{when(has_extra, "\n额外要求（请务必遵循）：\n" + (extra_requirements or "") + "\n")}
 {when(is_cover, "**注意：当前页面为ppt的封面页，请你采用专业的封面设计美学技巧，务必凸显出页面标题，分清主次，确保一下就能抓住观众的注意力。**")}
 """
 
