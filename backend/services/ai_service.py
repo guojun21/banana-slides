@@ -291,23 +291,25 @@ class AIService:
         try:
             from urllib.parse import urlparse
             import ipaddress
+            import socket
 
             parsed = urlparse(url)
             hostname = parsed.hostname or ""
 
-            # Block private/internal IPs (SSRF protection)
-            try:
-                ip = ipaddress.ip_address(hostname)
-                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
-                    logger.warning(f"Blocked SSRF attempt to internal address: {url}")
-                    return None
-            except ValueError:
-                # hostname is not an IP literal — allow DNS names through
-                pass
-
             # Block cloud metadata endpoints
             if hostname in ("metadata.google.internal", "169.254.169.254"):
                 logger.warning(f"Blocked SSRF attempt to metadata endpoint: {url}")
+                return None
+
+            # Resolve DNS and check all IPs (blocks DNS rebinding to internal IPs)
+            try:
+                for info in socket.getaddrinfo(hostname, None):
+                    ip = ipaddress.ip_address(info[4][0])
+                    if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                        logger.warning(f"Blocked SSRF: {hostname} resolves to internal address {ip}")
+                        return None
+            except socket.gaierror:
+                logger.warning(f"DNS resolution failed for {hostname}, blocking request")
                 return None
 
             logger.debug(f"Downloading image from URL: {url}")
@@ -497,10 +499,8 @@ class AIService:
         return loaded
 
     def _load_image_from_ref(self, ref_img: str) -> Optional[Image.Image]:
-        """从路径或 URL 加载单张图片"""
-        if os.path.exists(ref_img):
-            return Image.open(ref_img)
-        elif ref_img.startswith('http://') or ref_img.startswith('https://'):
+        """从路径或 URL 加载单张图片（仅允许 /files/ 路径和 http(s) URL）"""
+        if ref_img.startswith('http://') or ref_img.startswith('https://'):
             downloaded_img = self.download_image_from_url(ref_img)
             if not downloaded_img:
                 logger.warning(f"Failed to download image from URL: {ref_img}, skipping...")
