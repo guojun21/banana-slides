@@ -14,6 +14,15 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# Template helpers
+# ---------------------------------------------------------------------------
+
+def when(cond, text: str) -> str:
+    """条件文本：cond 为真返回 text，否则返回空字符串。用于模板内联条件。"""
+    return text if cond else ""
+
+
+# ---------------------------------------------------------------------------
 # expand_prompt: 将带占位符的文本模板展开为图文交错的 contents 列表
 # ---------------------------------------------------------------------------
 
@@ -337,13 +346,15 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
     else:
         original_input = project_context.idea_prompt or ""
     
+    is_cover = page_index == 1
+
     prompt = (f"""\
 我们正在为PPT的每一页生成内容描述。
 用户的原始需求是：\n{original_input}\n
 我们已经有了完整的大纲：\n{outline}\n{part_info}
 现在请为第 {page_index} 页生成描述：
 {page_outline}
-{"**除非特殊要求，第一页的内容需要保持极简，只放标题副标题以及演讲人等（输出到标题后）, 不添加任何素材。**" if page_index == 1 else ""}
+{when(is_cover, "**除非特殊要求，第一页的内容需要保持极简，只放标题副标题以及演讲人等（输出到标题后）, 不添加任何素材。**")}
 
 【重要提示】生成的"页面文字"部分会直接渲染到PPT页面上，因此请务必注意：
 1. 文字内容要简洁精炼，每条要点控制在15-25字以内
@@ -354,7 +365,7 @@ def get_page_description_prompt(project_context: 'ProjectContext', outline: list
 
 输出格式示例：
 页面标题：原始社会：与自然共生
-{"副标题：人类祖先和自然的相处之道" if page_index == 1 else ""}
+{when(is_cover, "副标题：人类祖先和自然的相处之道")}
 
 页面文字：
 - 狩猎采集文明：人类活动规模小，对环境影响有限
@@ -401,25 +412,8 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
         list[str | Image] — 可直接作为模型 contents 使用
     """
     has_material = material_images and len(material_images) > 0
-
-    # 添加额外要求到提示词
-    extra_req_text = ""
-    if extra_requirements and extra_requirements.strip():
-        extra_req_text = f"\n\n额外要求（请务必遵循）：\n{extra_requirements}\n"
-
-    # 根据是否有模板生成不同的设计指南内容
-    template_style_guideline = "- 配色和设计语言和模板图片严格相似。" if has_template else "- 严格按照风格描述进行设计。"
-    forbidden_template_text_guidline = "- 只参考风格设计，禁止出现模板中的文字。\n" if has_template else ""
-
-    # 素材图片使用说明
-    material_usage_note = ""
-    if has_material:
-        material_usage_note = (
-            "\n这些素材图片是可供挑选和使用的元素，你可以从中选择合适的图片、图标、图表或其他视觉元素"
-            "直接整合到生成的PPT页面中。请根据页面内容的需要，智能地选择和组合这些素材。"
-        )
-
-    cover_note = "**注意：当前页面为ppt的封面页，请你采用专业的封面设计美学技巧，务必凸显出页面标题，分清主次，确保一下就能抓住观众的注意力。**" if page_index == 1 else ""
+    has_extra = extra_requirements and extra_requirements.strip()
+    is_cover = page_index == 1
 
     # 该处参考了@歸藏的A工具箱
     template = f"""\
@@ -437,18 +431,18 @@ def get_image_generation_prompt(page_desc: str, outline_text: str,
 [[template_image:以下是模板参考图片（用于风格参考）：]]
 
 [[material_images:以下是素材图片：]]
-{material_usage_note}
+{when(has_material, chr(10) + "这些素材图片是可供挑选和使用的元素，你可以从中选择合适的图片、图标、图表或其他视觉元素直接整合到生成的PPT页面中。请根据页面内容的需要，智能地选择和组合这些素材。")}
 
 <design_guidelines>
 - 要求文字清晰锐利, 画面为4K分辨率，16:9比例。
-{template_style_guideline}
+{when(has_template, "- 配色和设计语言和模板图片严格相似。")}{when(not has_template, "- 严格按照风格描述进行设计。")}
 - 根据内容自动设计最完美的构图，不重不漏地渲染"页面描述"中的文本。
 - 如非必要，禁止出现 markdown 格式符号（如 # 和 * 等）。
-{forbidden_template_text_guidline}- 使用大小恰当的装饰性图形或插画对空缺位置进行填补。
+{when(has_template, "- 只参考风格设计，禁止出现模板中的文字。" + chr(10))}- 使用大小恰当的装饰性图形或插画对空缺位置进行填补。
 </design_guidelines>
 {get_ppt_language_instruction(language)}
-{extra_req_text}
-{cover_note}
+{when(has_extra, chr(10) + "额外要求（请务必遵循）：" + chr(10) + (extra_requirements or "") + chr(10))}
+{when(is_cover, "**注意：当前页面为ppt的封面页，请你采用专业的封面设计美学技巧，务必凸显出页面标题，分清主次，确保一下就能抓住观众的注意力。**")}
 """
 
     result = expand_prompt(template, {
