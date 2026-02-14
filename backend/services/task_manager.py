@@ -14,6 +14,7 @@ from models import db, Task, Page, Material, PageImageVersion
 from utils import get_filtered_pages
 from utils.image_utils import check_image_resolution
 from pathlib import Path
+from services.pdf_service import split_pdf_to_pages
 
 logger = logging.getLogger(__name__)
 
@@ -896,36 +897,18 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
             if not pdf_path:
                 raise ValueError("No PDF file found for renovation project")
 
-            # Step 1: Parse entire PDF at once (more efficient than per-page parsing)
-            logger.info("Step 1: Parsing entire PDF with MinerU (single API call)...")
-            task.set_progress({
-                "total": 1,
-                "completed": 0,
-                "failed": 0,
-                "current_step": "parsing"
-            })
-            db.session.commit()
-
-            filename = os.path.basename(pdf_path)
-            page_markdowns, extract_id, error_msg, _failed_captions = file_parser_service.parse_pdf_pages(
-                pdf_path, filename
-            )
-
-            if error_msg:
-                raise ValueError(f"PDF parsing failed: {error_msg}")
-
-            if not page_markdowns:
-                raise ValueError("No pages extracted from PDF")
-
-            logger.info(f"PDF parsed successfully: {len(page_markdowns)} pages extracted")
+            # Step 1: Split PDF into per-page PDFs
+            split_dir = str(project_dir / "split_pages")
+            page_pdfs = split_pdf_to_pages(pdf_path, split_dir)
+            logger.info(f"Split PDF into {len(page_pdfs)} pages")
 
             # Get existing pages
             pages = Page.query.filter_by(project_id=project_id).order_by(Page.order_index).all()
 
             # Ensure page count matches
-            if len(pages) != len(page_markdowns):
-                logger.warning(f"Page count mismatch: {len(pages)} DB pages vs {len(page_markdowns)} PDF pages. Using min.")
-            page_count = min(len(pages), len(page_markdowns))
+            if len(pages) != len(page_pdfs):
+                logger.warning(f"Page count mismatch: {len(pages)} pages vs {len(page_pdfs)} PDFs. Using min.")
+            page_count = min(len(pages), len(page_pdfs))
             if page_count == 0:
                 raise ValueError("No pages to process")
 
@@ -933,13 +916,13 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
                 "total": page_count,
                 "completed": 0,
                 "failed": 0,
-                "current_step": "extracting"
+                "current_step": "parsing"
             })
             db.session.commit()
 
-            # Step 2: Process each page's markdown with AI (parallel)
-            # Now only AI extraction is parallelized, MinerU was called once above
-            logger.info("Step 2: Extracting content from pages (AI parallel processing)...")
+            # Process each page as an independent pipeline:
+            # parse markdown → AI extract content → (optional layout caption) → write to DB
+            logger.info("Processing pages (parse → extract → save pipeline)...")
             import threading
             progress_lock = threading.Lock()
             completed = 0
@@ -947,17 +930,28 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
             extraction_errors = []
             content_results = {}  # index -> {title, points, description}
 
-            def process_single_page(idx, md_text):
+            def process_single_page(idx, page_pdf_path):
                 nonlocal completed, failed
                 with app.app_context():
                     try:
+                        # Step A: Parse page PDF → markdown
+                        filename = os.path.basename(page_pdf_path)
+                        _batch_id, md_text, extract_id, error_msg, _failed = file_parser_service.parse_file(page_pdf_path, filename)
+                        if error_msg:
+                            logger.warning(f"Page {idx} parse warning: {error_msg}")
                         md_text = md_text or ''
+
+                        # Supplement with header/footer from layout.json
+                        if extract_id:
+                            hf_text = file_parser_service.extract_header_footer_from_layout(extract_id)
+                            if hf_text:
+                                md_text = hf_text + '\n\n' + md_text
 
                         if not md_text.strip():
                             content = {'title': f'Page {idx + 1}', 'points': [], 'description': ''}
                             error = 'empty_input'
                         else:
-                            # AI extract structured content
+                            # Step B: AI extract structured content
                             content = ai_service.extract_page_content(md_text, language=language)
                             error = None
 
@@ -1022,7 +1016,7 @@ def process_ppt_renovation_task(task_id: str, project_id: str, ai_service,
 
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = [
-                    executor.submit(process_single_page, i, page_markdowns[i])
+                    executor.submit(process_single_page, i, page_pdfs[i])
                     for i in range(page_count)
                 ]
                 for future in as_completed(futures):
