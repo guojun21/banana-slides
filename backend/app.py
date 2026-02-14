@@ -24,7 +24,7 @@ from config import Config
 from controllers.material_controller import material_bp, material_global_bp
 from controllers.reference_file_controller import reference_file_bp
 from controllers.settings_controller import settings_bp
-from controllers import project_bp, page_bp, template_bp, user_template_bp, export_bp, file_bp
+from controllers import project_bp, page_bp, template_bp, user_template_bp, export_bp, file_bp, style_bp
 
 
 # Enable SQLite WAL mode for all connections
@@ -109,6 +109,7 @@ def create_app():
     app.register_blueprint(material_global_bp)
     app.register_blueprint(reference_file_bp, url_prefix='/api/reference-files')
     app.register_blueprint(settings_bp)
+    app.register_blueprint(style_bp)
 
     with app.app_context():
         # Load settings from database and sync to app.config
@@ -291,4 +292,4 @@ if __name__ == '__main__':
     )
     
     # Using absolute paths for database, so WSL path issues should not occur
-    app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=False)
+    app.run(host='0.0.0.0', port=port, debug=debug, use_reloader=debug)

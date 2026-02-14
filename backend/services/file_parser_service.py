@@ -484,6 +484,53 @@ class FileParserService:
             logger.error(error_msg)
             return None, None, error_msg
     
+    @staticmethod
+    def extract_header_footer_from_layout(extract_id: str) -> str:
+        """
+        从 MinerU layout.json 的 discarded_blocks 中提取页眉页脚文本。
+
+        Args:
+            extract_id: MinerU 解析结果的 extract_id
+
+        Returns:
+            提取到的页眉页脚文本，如无则返回空字符串
+        """
+        import json
+        from pathlib import Path
+
+        current_file = Path(__file__).resolve()
+        project_root = current_file.parent.parent.parent
+        mineru_dir = project_root / 'uploads' / 'mineru_files' / extract_id
+        layout_file = mineru_dir / 'layout.json'
+
+        if not layout_file.exists():
+            return ''
+
+        try:
+            with open(layout_file, 'r', encoding='utf-8') as f:
+                layout_data = json.load(f)
+
+            if 'pdf_info' not in layout_data or not layout_data['pdf_info']:
+                return ''
+
+            texts = []
+            for page_info in layout_data['pdf_info']:
+                for block in page_info.get('discarded_blocks', []):
+                    block_type = block.get('type', '')
+                    if block_type not in ('header', 'footer'):
+                        continue
+                    for line in block.get('lines', []):
+                        for span in line.get('spans', []):
+                            if span.get('type') == 'text' and span.get('content', '').strip():
+                                content = span['content'].strip()
+                                if content != '#':
+                                    texts.append(content)
+
+            return '\n'.join(texts)
+        except Exception as e:
+            logger.warning(f"Failed to extract header/footer from layout.json: {e}")
+            return ''
+
     def _replace_image_paths(self, markdown_content: str, markdown_file_path: str, extract_id: str) -> str:
         """Replace relative image paths in markdown with local server URLs"""
         import os

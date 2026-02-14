@@ -41,10 +41,19 @@ test.describe('UI-driven E2E test: From user interface to PPT export', () => {
     // ====================================
     console.log('📱 Step 1: Opening homepage...')
     await page.goto('http://localhost:3000')
-    
+
     // Verify page loaded
     await expect(page).toHaveTitle(/蕉幻|Banana/i)
     console.log('✓ Homepage loaded successfully\n')
+
+    // Dismiss HelpModal if it appears (shown on first visit when localStorage is empty)
+    const helpModal = page.locator('.fixed.inset-0.z-50')
+    if (await helpModal.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log('📋 Dismissing HelpModal...')
+      await page.keyboard.press('Escape')
+      await helpModal.waitFor({ state: 'hidden', timeout: 3000 })
+      console.log('✓ HelpModal dismissed\n')
+    }
     
     // ====================================
     // Step 2: Ensure "一句话生成" tab is selected (it's selected by default)
@@ -670,7 +679,15 @@ test.describe('UI E2E - Simplified (skip long waits)', () => {
     // Visit homepage
     await page.goto('http://localhost:3000')
     console.log('✓ Homepage loaded')
-    
+
+    // Dismiss HelpModal if it appears (shown on first visit when localStorage is empty)
+    const helpModal = page.locator('.fixed.inset-0.z-50')
+    if (await helpModal.isVisible({ timeout: 2000 }).catch(() => false)) {
+      console.log('📋 Dismissing HelpModal...')
+      await page.keyboard.press('Escape')
+      await helpModal.waitFor({ state: 'hidden', timeout: 3000 })
+    }
+
     // Ensure "一句话生成" tab is selected (it's selected by default)
     await page.click('button:has-text("一句话生成")').catch(() => {
       // If click fails, the tab might already be selected, which is fine

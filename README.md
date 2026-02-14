@@ -335,6 +335,7 @@ docker compose up -d
 - [uv](https://github.com/astral-sh/uv) - Python 包管理器
 - Node.js 16+ 和 npm
 - 有效的 Google Gemini API 密钥
+- （可选）[LibreOffice](https://www.libreoffice.org/) - 使用「PPT 翻新」功能上传 PPTX 文件时需要，用于将 PPTX 转换为 PDF。上传 PDF 文件则不需要
 
 #### 后端安装
 

@@ -167,6 +167,23 @@ export const generatePageDescription = async (
 };
 
 /**
+ * 重新生成 PPT 翻新项目的单页（重新解析原 PDF 并提取内容）
+ */
+export const regenerateRenovationPage = async (
+  projectId: string,
+  pageId: string,
+  keepLayout: boolean = false,
+  language?: OutputLanguage
+): Promise<ApiResponse> => {
+  const lang = language || await getStoredOutputLanguage();
+  const response = await apiClient.post<ApiResponse>(
+    `/api/projects/${projectId}/pages/${pageId}/regenerate-renovation`,
+    { keep_layout: keepLayout, language: lang }
+  );
+  return response.data;
+};
+
+/**
  * 根据用户要求修改大纲
  * @param projectId 项目ID
  * @param userRequirement 用户要求
@@ -966,5 +983,55 @@ export const getTestStatus = async (taskId: string): Promise<ApiResponse<{
   message?: string;
 }>> => {
   const response = await apiClient.get<ApiResponse<any>>(`/api/settings/tests/${taskId}/status`);
+  return response.data;
+};
+
+
+// ===== PPT 翻新相关 API =====
+
+/**
+ * 创建 PPT 翻新项目
+ * 上传 PDF/PPTX 文件，后端异步解析内容并填充大纲+描述
+ */
+export const createPptRenovationProject = async (
+  file: File,
+  options?: {
+    keepLayout?: boolean;
+    templateStyle?: string;
+    language?: string;
+  }
+): Promise<ApiResponse<{ project_id: string; task_id: string; page_count: number }>> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (options?.keepLayout) {
+    formData.append('keep_layout', 'true');
+  }
+  if (options?.templateStyle) {
+    formData.append('template_style', options.templateStyle);
+  }
+  if (options?.language) {
+    formData.append('language', options.language);
+  }
+
+  const response = await apiClient.post<ApiResponse<{ project_id: string; task_id: string; page_count: number }>>(
+    '/api/projects/renovation',
+    formData
+  );
+  return response.data;
+};
+
+/**
+ * 从图片提取风格描述（通用，不绑定项目）
+ */
+export const extractStyleFromImage = async (
+  imageFile: File
+): Promise<ApiResponse<{ style_description: string }>> => {
+  const formData = new FormData();
+  formData.append('image', imageFile);
+
+  const response = await apiClient.post<ApiResponse<{ style_description: string }>>(
+    '/api/extract-style',
+    formData
+  );
   return response.data;
 };
