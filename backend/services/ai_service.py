@@ -281,16 +281,37 @@ class AIService:
     def download_image_from_url(url: str) -> Optional[Image.Image]:
         """
         从 URL 下载图片并返回 PIL Image 对象
-        
+
         Args:
             url: 图片 URL
-            
+
         Returns:
             PIL Image 对象，如果下载失败则返回 None
         """
         try:
+            from urllib.parse import urlparse
+            import ipaddress
+
+            parsed = urlparse(url)
+            hostname = parsed.hostname or ""
+
+            # Block private/internal IPs (SSRF protection)
+            try:
+                ip = ipaddress.ip_address(hostname)
+                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+                    logger.warning(f"Blocked SSRF attempt to internal address: {url}")
+                    return None
+            except ValueError:
+                # hostname is not an IP literal — allow DNS names through
+                pass
+
+            # Block cloud metadata endpoints
+            if hostname in ("metadata.google.internal", "169.254.169.254"):
+                logger.warning(f"Blocked SSRF attempt to metadata endpoint: {url}")
+                return None
+
             logger.debug(f"Downloading image from URL: {url}")
-            response = requests.get(url, timeout=30, stream=True)
+            response = requests.get(url, timeout=30, stream=True, allow_redirects=False)
             response.raise_for_status()
             
             # 从响应内容创建 PIL Image
@@ -404,7 +425,7 @@ class AIService:
                             has_template: bool = True,
                             ref_image_path: Optional[str] = None,
                             additional_ref_images: Optional[List[Union[str, Image.Image]]] = None,
-                            ) -> list:
+                            ) -> List[Union[str, Image.Image]]:
         """
         Generate image generation prompt for a page (interleaved text + images)
 
@@ -509,7 +530,8 @@ class AIService:
             logger.warning(f"Invalid image reference: {ref_img}, skipping...")
             return None
 
-    def generate_image(self, prompt, ref_image_path: Optional[str] = None,
+    def generate_image(self, prompt: Union[str, List[Union[str, Image.Image]]],
+                      ref_image_path: Optional[str] = None,
                       aspect_ratio: str = "16:9", resolution: str = "2K",
                       additional_ref_images: Optional[List[Union[str, Image.Image]]] = None) -> Optional[Image.Image]:
         """

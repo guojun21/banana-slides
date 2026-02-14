@@ -14,7 +14,7 @@ import base64
 import re
 import requests
 from io import BytesIO
-from typing import Optional, List
+from typing import Optional, List, Union
 from openai import OpenAI
 from PIL import Image
 from .base import ImageProvider
@@ -107,7 +107,7 @@ class OpenAIImageProvider(ImageProvider):
 
     def generate_image(
         self,
-        contents: List,
+        contents: List[Union[str, Image.Image]],
         aspect_ratio: str = "16:9",
         resolution: str = "2K",
         enable_thinking: bool = False,

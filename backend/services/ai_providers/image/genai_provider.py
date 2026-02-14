@@ -6,7 +6,7 @@ Operates in two authentication modes selected at construction time:
   * Vertex AI mode (GCP service-account credentials via GOOGLE_APPLICATION_CREDENTIALS)
 """
 import logging
-from typing import Optional, List
+from typing import Optional, List, Union
 from google import genai
 from google.genai import types
 from PIL import Image
@@ -47,7 +47,7 @@ class GenAIImageProvider(ImageProvider):
     )
     def generate_image(
         self,
-        contents: List,
+        contents: List[Union[str, Image.Image]],
         aspect_ratio: str = "16:9",
         resolution: str = "2K",
         enable_thinking: bool = True,

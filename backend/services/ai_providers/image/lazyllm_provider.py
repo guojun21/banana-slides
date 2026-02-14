@@ -15,7 +15,7 @@ Support models:
 import tempfile
 import os
 import logging
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, Union
 from PIL import Image
 from .base import ImageProvider
 from ..lazyllm_env import ensure_lazyllm_namespace_key
@@ -155,7 +155,7 @@ class LazyLLMImageProvider(ImageProvider):
             type='image_editing',
         )
 
-    def generate_image(self, contents: list = None,
+    def generate_image(self, contents: Optional[List[Union[str, Image.Image]]] = None,
                        aspect_ratio="16:9",
                        resolution="1920*1080",
                        enable_thinking: bool = False,

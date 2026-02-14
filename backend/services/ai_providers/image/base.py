@@ -2,7 +2,7 @@
 Abstract base class for image generation providers
 """
 from abc import ABC, abstractmethod
-from typing import Optional, List, Union, Any
+from typing import Optional, List, Union
 from PIL import Image
 
 
@@ -12,7 +12,7 @@ class ImageProvider(ABC):
     @abstractmethod
     def generate_image(
         self,
-        contents: List[Union[str, Any]],
+        contents: List[Union[str, Image.Image]],
         aspect_ratio: str = "16:9",
         resolution: str = "2K",
         enable_thinking: bool = False,
