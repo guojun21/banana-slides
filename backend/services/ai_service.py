@@ -7,9 +7,12 @@ import os
 import json
 import re
 import logging
+import socket
+import ipaddress
 import requests
 from typing import List, Dict, Optional, Union
 from textwrap import dedent
+from urllib.parse import urlparse
 from PIL import Image
 from tenacity import retry, stop_after_attempt, retry_if_exception_type
 from .prompts import (
@@ -289,10 +292,6 @@ class AIService:
             PIL Image 对象，如果下载失败则返回 None
         """
         try:
-            from urllib.parse import urlparse
-            import ipaddress
-            import socket
-
             parsed = urlparse(url)
             hostname = parsed.hostname or ""
 
