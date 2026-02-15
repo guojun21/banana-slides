@@ -5,7 +5,7 @@ import { Sparkles, FileText, FileEdit, ImagePlus, Paperclip, Palette, Lightbulb,
 import { Button, Textarea, Card, useToast, MaterialGeneratorModal, MaterialCenterModal, ReferenceFileList, ReferenceFileSelector, FilePreviewModal, HelpModal, Footer, GithubRepoCard } from '@/components/shared';
 import { MarkdownTextarea, type MarkdownTextareaRef } from '@/components/shared/MarkdownTextarea';
 import { TemplateSelector, getTemplateFile } from '@/components/shared/TemplateSelector';
-import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, listProjects } from '@/api/endpoints';
+import { listUserTemplates, type UserTemplate, uploadReferenceFile, type ReferenceFile, associateFileToProject, triggerFileParse, associateMaterialsToProject, listProjects, getSettings } from '@/api/endpoints';
 import { useProjectStore } from '@/store/useProjectStore';
 import { useTheme } from '@/hooks/useTheme';
 import { useImagePaste } from '@/hooks/useImagePaste';
@@ -83,6 +83,7 @@ const homeI18n = {
         filesAdded: '已添加 {{count}} 个参考文件',
         imageRemoved: '已移除图片',
         serviceTestTip: '建议先到设置页底部进行服务测试，避免后续功能异常',
+        noApiKey: '请先在设置页配置 API Key',
       },
     },
   },
@@ -151,6 +152,7 @@ const homeI18n = {
         pptTip: 'Tip: Convert PPT to PDF for better parsing results',
         filesAdded: 'Added {{count}} reference file(s)',
         imageRemoved: 'Image removed',
+        noApiKey: 'Please configure an API Key in Settings first',
         serviceTestTip: 'Test services in Settings first to avoid issues',
       },
     },
@@ -188,6 +190,7 @@ export const Home: React.FC = () => {
   const [useTemplateStyle, setUseTemplateStyle] = useState(false);
   const [templateStyle, setTemplateStyle] = useState('');
   const [hoveredPresetId, setHoveredPresetId] = useState<string | null>(null);
+  const [apiKeyLength, setApiKeyLength] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const themeMenuRef = useRef<HTMLDivElement>(null);
 
@@ -208,6 +211,14 @@ export const Home: React.FC = () => {
       }
     };
     loadTemplates();
+
+    const loadApiKeyLength = async () => {
+      try {
+        const res = await getSettings();
+        if (res.data) setApiKeyLength(res.data.api_key_length ?? null);
+      } catch {}
+    };
+    loadApiKeyLength();
   }, []);
 
   // 首次访问自动弹出帮助模态框
@@ -484,6 +495,13 @@ export const Home: React.FC = () => {
         message: t('home.messages.filesParsing', { count: parsingFiles.length }),
         type: 'info'
       });
+      return;
+    }
+
+    // 快速检查：API Key 未配置时直接跳转设置页
+    if (apiKeyLength === 0) {
+      show({ message: t('home.messages.noApiKey'), type: 'error' });
+      navigate('/settings');
       return;
     }
 
