@@ -247,7 +247,7 @@ def _load_settings_to_config(app):
 
         # Sync LazyLLM vendor API keys to environment variables
         # Only allow known vendor names to prevent environment variable injection
-        ALLOWED_LAZYLLM_VENDORS = {'qwen', 'doubao', 'deepseek', 'glm', 'siliconflow', 'sensenova', 'minimax', 'openai', 'kimi'}
+        from services.ai_providers.lazyllm_env import ALLOWED_LAZYLLM_VENDORS
         if settings.lazyllm_api_keys:
             import json
             try:

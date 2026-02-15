@@ -119,6 +119,8 @@ class Settings(db.Model):
                 default_api_base = Config.GOOGLE_API_BASE or None
                 default_api_key = Config.GOOGLE_API_KEY or None
 
+            from services.ai_providers.lazyllm_env import collect_env_lazyllm_api_keys
+
             settings = Settings(
                 ai_provider_format=Config.AI_PROVIDER_FORMAT,
                 api_base_url=default_api_base,
@@ -137,6 +139,7 @@ class Settings(db.Model):
                 text_model_source=getattr(Config, 'TEXT_MODEL_SOURCE', None),
                 image_model_source=getattr(Config, 'IMAGE_MODEL_SOURCE', None),
                 image_caption_model_source=getattr(Config, 'IMAGE_CAPTION_MODEL_SOURCE', None),
+                lazyllm_api_keys=collect_env_lazyllm_api_keys(),
             )
             settings.id = 1
             db.session.add(settings)

@@ -348,7 +348,8 @@ def reset_settings():
         settings.text_model_source = getattr(Config, 'TEXT_MODEL_SOURCE', None)
         settings.image_model_source = getattr(Config, 'IMAGE_MODEL_SOURCE', None)
         settings.image_caption_model_source = getattr(Config, 'IMAGE_CAPTION_MODEL_SOURCE', None)
-        settings.lazyllm_api_keys = None
+        from services.ai_providers.lazyllm_env import collect_env_lazyllm_api_keys
+        settings.lazyllm_api_keys = collect_env_lazyllm_api_keys()
         settings.image_resolution = Config.DEFAULT_RESOLUTION
         settings.image_aspect_ratio = Config.DEFAULT_ASPECT_RATIO
         settings.max_description_workers = Config.MAX_DESCRIPTION_WORKERS
