@@ -534,9 +534,9 @@ def download_materials_zip():
     if not rows:
         return not_found('Materials')
 
+    tmp = tempfile.SpooledTemporaryFile(max_size=64 * 1024 * 1024)
     try:
         fs = FileService(current_app.config['UPLOAD_FOLDER'])
-        tmp = tempfile.SpooledTemporaryFile(max_size=64 * 1024 * 1024)
 
         with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zf:
             for row in rows:
@@ -551,7 +551,8 @@ def download_materials_zip():
 
         return send_file(tmp, mimetype='application/zip',
                          as_attachment=True, download_name=fname)
-    except Exception as exc:
+    except Exception:
+        tmp.close()
         current_app.logger.exception("Failed to build materials zip")
         return error_response('SERVER_ERROR', 'Failed to create zip archive', 500)
 
