@@ -604,28 +604,24 @@ export const deleteMaterial = async (materialId: string): Promise<ApiResponse<{ 
 };
 
 /**
- * 批量下载素材（打包为zip）
- * @param materialIds 素材ID列表
+ * Download selected materials bundled as a zip archive.
  */
 export const downloadMaterialsZip = async (
   materialIds: string[]
 ): Promise<ApiResponse<{ download_url: string }>> => {
-  const response = await apiClient.post<Blob>(
+  const { data: blob } = await apiClient.post<Blob>(
     '/api/materials/download',
     { material_ids: materialIds },
-    { responseType: 'blob' }
+    { responseType: 'blob' },
   );
 
-  // 直接触发下载
-  const blob = response.data;
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'materials.zip';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  window.URL.revokeObjectURL(url);
+  const href = URL.createObjectURL(blob);
+  const link = Object.assign(document.createElement('a'), {
+    href,
+    download: 'materials.zip',
+  });
+  link.click();
+  URL.revokeObjectURL(href);
 
   return { success: true, data: { download_url: '' } };
 };

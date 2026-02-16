@@ -519,61 +519,34 @@ def associate_materials_to_project():
 
 @material_global_bp.route('/download', methods=['POST'])
 def download_materials_zip():
-    """
-    POST /api/materials/download - Download multiple materials as a zip file
+    """Bundle requested materials into a ZIP and stream it back."""
+    body = request.get_json(silent=True) or {}
+    ids = body.get('material_ids')
 
-    Request body (JSON):
-    {
-        "material_ids": ["id1", "id2", ...]
-    }
+    if not ids or not isinstance(ids, list):
+        return bad_request("material_ids must be a non-empty list")
 
-    Returns:
-        Zip file containing all requested materials
-    """
+    rows = Material.query.filter(Material.id.in_(ids)).all()
+    if not rows:
+        return not_found('Materials')
+
     try:
-        data = request.get_json() or {}
-        material_ids = data.get('material_ids', [])
+        fs = FileService(current_app.config['UPLOAD_FOLDER'])
+        buf = io.BytesIO()
 
-        if not material_ids or not isinstance(material_ids, list):
-            return bad_request("material_ids must be a non-empty array")
-
-        # Query materials
-        materials = Material.query.filter(Material.id.in_(material_ids)).all()
-
-        if not materials:
-            return not_found('Materials')
-
-        file_service = FileService(current_app.config['UPLOAD_FOLDER'])
-
-        # Create zip file in memory
-        zip_buffer = io.BytesIO()
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-            for material in materials:
-                try:
-                    # Get absolute path of the material file
-                    material_path = Path(file_service.get_absolute_path(material.relative_path))
-
-                    if material_path.exists():
-                        # Use original filename or material filename
-                        arcname = material.filename
-                        zip_file.write(str(material_path), arcname)
-                except Exception as e:
-                    current_app.logger.warning(f"Failed to add material {material.id} to zip: {e}")
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for row in rows:
+                abs_path = Path(fs.get_absolute_path(row.relative_path))
+                if not abs_path.is_file():
+                    current_app.logger.warning("Skipping missing file for material %s", row.id)
                     continue
+                zf.write(str(abs_path), row.filename)
 
-        zip_buffer.seek(0)
+        buf.seek(0)
+        fname = f"materials_{int(time.time())}.zip"
 
-        # Generate filename with timestamp
-        timestamp = int(time.time())
-        zip_filename = f"materials_{timestamp}.zip"
-
-        return send_file(
-            zip_buffer,
-            mimetype='application/zip',
-            as_attachment=True,
-            download_name=zip_filename
-        )
-
-    except Exception as e:
-        return error_response('SERVER_ERROR', str(e), 500)
+        return send_file(buf, mimetype='application/zip',
+                         as_attachment=True, download_name=fname)
+    except Exception as exc:
+        return error_response('SERVER_ERROR', str(exc), 500)
 
