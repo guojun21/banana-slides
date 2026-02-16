@@ -413,7 +413,7 @@ export const MaterialCenterModal: React.FC<MaterialCenterModalProps> = ({ isOpen
     if (!s.projectsReady) fetchProjects();
     fetchItems();
     dispatch({ type: 'RESET_EPHEMERAL' });
-  }, [isOpen, s.filter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isOpen, s.filter]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -469,7 +469,9 @@ export const MaterialCenterModal: React.FC<MaterialCenterModalProps> = ({ isOpen
           href,
           download: chosen[0].filename || 'material.png',
         });
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
         URL.revokeObjectURL(href);
         show({ message: t('mc.msg.downloaded'), type: 'success' });
       } catch {

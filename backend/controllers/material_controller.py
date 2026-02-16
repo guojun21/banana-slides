@@ -552,5 +552,6 @@ def download_materials_zip():
         return send_file(buf, mimetype='application/zip',
                          as_attachment=True, download_name=fname)
     except Exception as exc:
-        return error_response('SERVER_ERROR', str(exc), 500)
+        current_app.logger.exception("Failed to build materials zip")
+        return error_response('SERVER_ERROR', 'Failed to create zip archive', 500)
 

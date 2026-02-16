@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Modal } from './Modal';
 import { Button } from './Button';
 import { useT } from '@/hooks/useT';
+import { useTranslation } from 'react-i18next';
 
 // ---------------------------------------------------------------------------
 // i18n
@@ -103,8 +104,23 @@ const FEATURES: { key: string; icon: React.ReactNode }[] = [
 // ---------------------------------------------------------------------------
 // Page renderers
 // ---------------------------------------------------------------------------
+/** Retrieve an array value from i18nDict by dot-path (useT only handles strings). */
+function tList(lang: 'zh' | 'en', path: string): string[] {
+  const dict = i18nDict[lang] as Record<string, unknown>;
+  let cur: unknown = dict;
+  for (const seg of path.split('.')) {
+    if (cur && typeof cur === 'object' && seg in (cur as Record<string, unknown>)) {
+      cur = (cur as Record<string, unknown>)[seg];
+    } else {
+      return [];
+    }
+  }
+  return Array.isArray(cur) ? cur : [];
+}
+
 type PageRenderer = (ctx: {
   t: ReturnType<typeof useT>;
+  lang: 'zh' | 'en';
   navigate: ReturnType<typeof useNavigate>;
   onClose: () => void;
   showcaseIdx: number;
@@ -113,14 +129,14 @@ type PageRenderer = (ctx: {
   setExpandedFeat: (i: number | null) => void;
 }) => React.ReactNode;
 
-const renderSetupPage: PageRenderer = ({ t, navigate, onClose }) => {
+const renderSetupPage: PageRenderer = ({ t, lang, navigate, onClose }) => {
   const steps = [
     { num: '1', bg: 'bg-banana-500', content: (
       <div className="flex-1 space-y-2">
         <h4 className="font-semibold text-gray-800 dark:text-foreground-primary">{t('guide.s1')}</h4>
         <p className="text-sm text-gray-600 dark:text-foreground-tertiary">{t('guide.s1d')}</p>
         <ul className="text-sm text-gray-600 dark:text-foreground-tertiary space-y-1 pl-4">
-          {(t('guide.s1i', { returnObjects: true }) as string[]).map((item, i) => (
+          {tList(lang, 'guide.s1i').map((item, i) => (
             <li key={i}>• {item}</li>
           ))}
         </ul>
@@ -195,7 +211,7 @@ const renderSetupPage: PageRenderer = ({ t, navigate, onClose }) => {
   );
 };
 
-const renderFeaturesPage: PageRenderer = ({ t, expandedFeat, setExpandedFeat }) => (
+const renderFeaturesPage: PageRenderer = ({ t, lang, expandedFeat, setExpandedFeat }) => (
   <div className="space-y-3">
     {FEATURES.map((f, idx) => (
       <div
@@ -220,7 +236,7 @@ const renderFeaturesPage: PageRenderer = ({ t, expandedFeat, setExpandedFeat }) 
         {expandedFeat === idx && (
           <div className="px-4 pb-4 pt-0">
             <div className="pl-13 space-y-2">
-              {(t(`guide.feat.${f.key}.items`, { returnObjects: true }) as string[]).map((line, li) => (
+              {tList(lang, `guide.feat.${f.key}.items`).map((line, li) => (
                 <div key={li} className="flex items-start gap-2 text-sm text-gray-600 dark:text-foreground-tertiary">
                   <span className="text-banana-500 mt-1">•</span>
                   <span>{line}</span>
@@ -307,6 +323,8 @@ interface HelpModalProps {
 
 export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
   const t = useT(i18nDict);
+  const { i18n } = useTranslation();
+  const lang: 'zh' | 'en' = i18n.language?.startsWith('zh') ? 'zh' : 'en';
   const navigate = useNavigate();
   const [pageIdx, setPageIdx] = useState(0);
   const [showcaseIdx, setShowcaseIdx] = useState(0);
@@ -341,7 +359,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
 
         {/* body */}
         <div className="min-h-[400px]">
-          {page.render({ t, navigate, onClose, showcaseIdx, setShowcaseIdx, expandedFeat, setExpandedFeat })}
+          {page.render({ t, lang, navigate, onClose, showcaseIdx, setShowcaseIdx, expandedFeat, setExpandedFeat })}
         </div>
 
         {/* footer */}

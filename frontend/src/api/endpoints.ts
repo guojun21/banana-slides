@@ -620,7 +620,9 @@ export const downloadMaterialsZip = async (
     href,
     download: 'materials.zip',
   });
+  document.body.appendChild(link);
   link.click();
+  document.body.removeChild(link);
   URL.revokeObjectURL(href);
 
   return { success: true, data: { download_url: '' } };
