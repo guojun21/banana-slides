@@ -536,9 +536,9 @@ def download_materials_zip():
 
     try:
         fs = FileService(current_app.config['UPLOAD_FOLDER'])
-        buf = io.BytesIO()
+        tmp = tempfile.SpooledTemporaryFile(max_size=64 * 1024 * 1024)
 
-        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zf:
             for row in rows:
                 abs_path = Path(fs.get_absolute_path(row.relative_path))
                 if not abs_path.is_file():
@@ -546,10 +546,10 @@ def download_materials_zip():
                     continue
                 zf.write(str(abs_path), row.filename)
 
-        buf.seek(0)
+        tmp.seek(0)
         fname = f"materials_{int(time.time())}.zip"
 
-        return send_file(buf, mimetype='application/zip',
+        return send_file(tmp, mimetype='application/zip',
                          as_attachment=True, download_name=fname)
     except Exception as exc:
         current_app.logger.exception("Failed to build materials zip")

@@ -28,5 +28,5 @@ def make_genai_client(
             http_options=types.HttpOptions(timeout=timeout_ms),
         )
 
-    opts = types.HttpOptions(base_url=api_base, timeout=timeout_ms) if api_base else types.HttpOptions(timeout=timeout_ms)
+    opts = types.HttpOptions(timeout=timeout_ms, base_url=api_base)
     return genai.Client(http_options=opts, api_key=api_key)

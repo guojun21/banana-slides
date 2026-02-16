@@ -102,15 +102,7 @@ def _build_provider_config() -> Dict[str, Any]:
     fmt = get_provider_format()
     cfg: Dict[str, Any] = {'format': fmt}
 
-    if fmt == 'gemini':
-        cfg['api_key'] = _resolve_setting('GOOGLE_API_KEY')
-        cfg['api_base'] = _resolve_setting('GOOGLE_API_BASE')
-        if not cfg['api_key']:
-            raise ValueError("GOOGLE_API_KEY (from database settings or environment) is required")
-        logger.info("Provider config — format: gemini, api_base: %s, api_key: %s",
-                     cfg['api_base'], '***' if cfg['api_key'] else 'None')
-
-    elif fmt == 'openai':
+    if fmt == 'openai':
         cfg['api_key'] = _resolve_setting('OPENAI_API_KEY') or _resolve_setting('GOOGLE_API_KEY')
         cfg['api_base'] = _resolve_setting('OPENAI_API_BASE', 'https://aihubmix.com/v1')
         if not cfg['api_key']:
@@ -138,13 +130,16 @@ def _build_provider_config() -> Dict[str, Any]:
                      cfg['text_source'], cfg['image_source'])
 
     else:
-        # Unknown format — treat as gemini
-        cfg['format'] = 'gemini'
+        # gemini (default) or unknown format
+        if fmt != 'gemini':
+            logger.warning("Unknown provider format '%s', falling back to gemini", fmt)
+            cfg['format'] = 'gemini'
         cfg['api_key'] = _resolve_setting('GOOGLE_API_KEY')
         cfg['api_base'] = _resolve_setting('GOOGLE_API_BASE')
         if not cfg['api_key']:
             raise ValueError("GOOGLE_API_KEY (from database settings or environment) is required")
-        logger.warning("Unknown provider format '%s', falling back to gemini", fmt)
+        logger.info("Provider config — format: gemini, api_base: %s, api_key: %s",
+                     cfg['api_base'], '***' if cfg['api_key'] else 'None')
 
     return cfg
 
