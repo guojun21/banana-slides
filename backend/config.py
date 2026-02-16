@@ -45,10 +45,10 @@ class Config:
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY', '')
     GOOGLE_API_BASE = os.getenv('GOOGLE_API_BASE', '')
     
-    # AI Provider 格式配置: "gemini" (Google GenAI SDK), "openai" (OpenAI SDK), "vertex" (Vertex AI), "lazyllm" (Lazyllm Framework)
+    # Provider format: gemini | openai | vertex | lazyllm
     AI_PROVIDER_FORMAT = os.getenv('AI_PROVIDER_FORMAT', 'gemini')
 
-    # Vertex AI 专用配置（当 AI_PROVIDER_FORMAT=vertex 时使用）
+    # Google Cloud Vertex AI (requires AI_PROVIDER_FORMAT=vertex)
     VERTEX_PROJECT_ID = os.getenv('VERTEX_PROJECT_ID', '')
     VERTEX_LOCATION = os.getenv('VERTEX_LOCATION', 'us-central1')
     

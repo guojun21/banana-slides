@@ -218,8 +218,8 @@ OPENAI_API_KEY=your-api-key-here
 OPENAI_API_BASE=https://api.openai.com/v1
 # 代理示例: https://aihubmix.com/v1
 
-# Vertex AI 格式配置（当 AI_PROVIDER_FORMAT=vertex 时使用）
-# 需要 GCP 服务账户，可使用 GCP 免费额度
+# Vertex AI 配置（AI_PROVIDER_FORMAT=vertex）
+# 需要 GCP 项目和服务账户密钥
 # VERTEX_PROJECT_ID=your-gcp-project-id
 # VERTEX_LOCATION=global
 # GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
@@ -245,27 +245,21 @@ MINIMAX_API_KEY=your-minimax-api-key          # MiniMax
 
 
 <details>
-  <summary>📒 使用 Vertex AI（GCP 免费额度）</summary>
+  <summary>📒 Vertex AI 配置指南（适用于 GCP 用户）</summary>
 
-如果你想使用 Google Cloud Vertex AI（可使用 GCP 新用户赠金），需要额外配置：
+Google Cloud Vertex AI 允许通过 GCP 服务账户调用 Gemini 模型，新用户可使用赠金额度。配置步骤：
 
-1. 在 [GCP Console](https://console.cloud.google.com/) 创建服务账户并下载 JSON 密钥文件
-2. 将密钥文件重命名为 `gcp-service-account.json` 放在项目根目录
-3. 编辑 `.env` 文件：
+1. 前往 [GCP Console](https://console.cloud.google.com/)，创建一个服务账户并下载 JSON 格式的密钥文件
+2. 将密钥文件保存为项目根目录下的 `gcp-service-account.json`
+3. 在 `.env` 中设置：
    ```env
    AI_PROVIDER_FORMAT=vertex
    VERTEX_PROJECT_ID=your-gcp-project-id
    VERTEX_LOCATION=global
    ```
-4. 编辑 `docker-compose.yml`，取消以下注释：
-   ```yaml
-   # environment:
-   #   - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-service-account.json
-   # ...
-   # - ./gcp-service-account.json:/app/gcp-service-account.json:ro
-   ```
+4. 如果使用 Docker 部署，还需要在 `docker-compose.yml` 中取消相关注释，将密钥文件挂载到容器内并设置 `GOOGLE_APPLICATION_CREDENTIALS` 环境变量。
 
-> **注意**：`gemini-3-*` 系列模型需要设置 `VERTEX_LOCATION=global`
+> `gemini-3-*` 系列模型要求 `VERTEX_LOCATION=global`
 
 </details>
 
@@ -382,8 +376,8 @@ OPENAI_API_KEY=your-api-key-here
 OPENAI_API_BASE=https://api.openai.com/v1
 # 代理示例: https://aihubmix.com/v1
 
-# Vertex AI 格式配置（当 AI_PROVIDER_FORMAT=vertex 时使用）
-# 需要 GCP 服务账户，可使用 GCP 免费额度
+# Vertex AI 配置（AI_PROVIDER_FORMAT=vertex）
+# 需要 GCP 项目和服务账户密钥
 # VERTEX_PROJECT_ID=your-gcp-project-id
 # VERTEX_LOCATION=global
 # GOOGLE_APPLICATION_CREDENTIALS=./gcp-service-account.json
