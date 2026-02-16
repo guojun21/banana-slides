@@ -300,19 +300,30 @@ class AIService:
                 logger.warning(f"Blocked SSRF attempt to metadata endpoint: {url}")
                 return None
 
-            # Resolve DNS and check all IPs (blocks DNS rebinding to internal IPs)
+            # Resolve DNS, validate all IPs, then request using the validated IP
+            # to prevent DNS rebinding attacks
+            validated_ip = None
             try:
                 for info in socket.getaddrinfo(hostname, None):
                     ip = ipaddress.ip_address(info[4][0])
                     if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
                         logger.warning(f"Blocked SSRF: {hostname} resolves to internal address {ip}")
                         return None
+                    if validated_ip is None:
+                        validated_ip = str(ip)
             except socket.gaierror:
                 logger.warning(f"DNS resolution failed for {hostname}, blocking request")
                 return None
 
-            logger.debug(f"Downloading image from URL: {url}")
-            response = requests.get(url, timeout=30, stream=True, allow_redirects=False)
+            if validated_ip is None:
+                logger.warning(f"No DNS records found for {hostname}")
+                return None
+
+            # Build URL with validated IP to prevent DNS rebinding
+            safe_url = parsed._replace(netloc=f"{validated_ip}:{parsed.port}" if parsed.port else validated_ip).geturl()
+            logger.debug(f"Downloading image from URL: {url} (via {validated_ip})")
+            response = requests.get(safe_url, timeout=30, stream=True, allow_redirects=False,
+                                    headers={"Host": hostname})
             response.raise_for_status()
             
             # 从响应内容创建 PIL Image
