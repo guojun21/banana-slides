@@ -36,11 +36,19 @@ class Settings(db.Model):
     # 百度 OCR 配置
     baidu_ocr_api_key = db.Column(db.String(500), nullable=True)  # 百度 OCR API Key
 
-    # LazyLLM 配置
-    text_model_source = db.Column(db.String(50), nullable=True)           # lazyllm 文本模型厂商 (qwen, doubao, deepseek, ...)
-    image_model_source = db.Column(db.String(50), nullable=True)          # lazyllm 图片模型厂商
-    image_caption_model_source = db.Column(db.String(50), nullable=True)  # lazyllm 图片识别模型厂商
+    # 每种模型类型的提供商配置（source 可选 gemini/openai/lazyllm厂商名，NULL=使用全局配置）
+    text_model_source = db.Column(db.String(50), nullable=True)           # 文本模型提供商 (gemini, openai, qwen, doubao, deepseek, ...)
+    image_model_source = db.Column(db.String(50), nullable=True)          # 图片模型提供商
+    image_caption_model_source = db.Column(db.String(50), nullable=True)  # 图片识别模型提供商
     lazyllm_api_keys = db.Column(db.Text, nullable=True)                  # JSON: {"qwen": "key1", "doubao": "key2", ...}
+
+    # Per-model API 凭证（当 source 为 gemini/openai 时使用，NULL=使用全局 api_key/api_base_url）
+    text_api_key = db.Column(db.String(500), nullable=True)
+    text_api_base_url = db.Column(db.String(500), nullable=True)
+    image_api_key = db.Column(db.String(500), nullable=True)
+    image_api_base_url = db.Column(db.String(500), nullable=True)
+    image_caption_api_key = db.Column(db.String(500), nullable=True)
+    image_caption_api_base_url = db.Column(db.String(500), nullable=True)
     
     created_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
@@ -71,6 +79,12 @@ class Settings(db.Model):
             'image_model_source': self.image_model_source,
             'image_caption_model_source': self.image_caption_model_source,
             'lazyllm_api_keys_info': self._get_lazyllm_api_keys_info(),
+            'text_api_key_length': len(self.text_api_key) if self.text_api_key else 0,
+            'text_api_base_url': self.text_api_base_url,
+            'image_api_key_length': len(self.image_api_key) if self.image_api_key else 0,
+            'image_api_base_url': self.image_api_base_url,
+            'image_caption_api_key_length': len(self.image_caption_api_key) if self.image_caption_api_key else 0,
+            'image_caption_api_base_url': self.image_caption_api_base_url,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }

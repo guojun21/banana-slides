@@ -147,6 +147,13 @@ export interface Settings {
   image_model_source?: string;
   image_caption_model_source?: string;
   lazyllm_api_keys_info?: Record<string, number>;  // {vendor: key_length}
+  // Per-model API credentials (for gemini/openai per-model overrides)
+  text_api_key_length: number;
+  text_api_base_url?: string;
+  image_api_key_length: number;
+  image_api_base_url?: string;
+  image_caption_api_key_length: number;
+  image_caption_api_base_url?: string;
   created_at?: string;
   updated_at?: string;
 }
