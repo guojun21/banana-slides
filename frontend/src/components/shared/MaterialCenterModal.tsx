@@ -474,7 +474,8 @@ export const MaterialCenterModal: React.FC<MaterialCenterModalProps> = ({ isOpen
         document.body.removeChild(link);
         URL.revokeObjectURL(href);
         show({ message: t('mc.msg.downloaded'), type: 'success' });
-      } catch {
+      } catch (err) {
+        console.error('Download failed:', err);
         show({ message: t('mc.msg.downloadErr'), type: 'error' });
       }
       return;

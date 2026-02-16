@@ -14,32 +14,9 @@ from io import BytesIO
 from tenacity import retry, stop_after_attempt, wait_exponential
 from .base import ImageProvider
 from config import get_config
+from ..genai_client import make_genai_client
 
 logger = logging.getLogger(__name__)
-
-
-def _make_genai_client(
-    *,
-    vertexai: bool,
-    api_key: str = None,
-    api_base: str = None,
-    project_id: str = None,
-    location: str = None,
-) -> genai.Client:
-    """Construct a ``genai.Client`` for either AI Studio or Vertex AI."""
-    timeout_ms = int(get_config().GENAI_TIMEOUT * 1000)
-
-    if vertexai:
-        logger.info("Creating GenAI client (Vertex AI) — project=%s, location=%s", project_id, location)
-        return genai.Client(
-            vertexai=True,
-            project=project_id,
-            location=location or "us-central1",
-            http_options=types.HttpOptions(timeout=timeout_ms),
-        )
-
-    opts = types.HttpOptions(base_url=api_base, timeout=timeout_ms) if api_base else types.HttpOptions(timeout=timeout_ms)
-    return genai.Client(http_options=opts, api_key=api_key)
 
 
 class GenAIImageProvider(ImageProvider):
@@ -54,7 +31,7 @@ class GenAIImageProvider(ImageProvider):
         project_id: str = None,
         location: str = None,
     ):
-        self.client = _make_genai_client(
+        self.client = make_genai_client(
             vertexai=vertexai,
             api_key=api_key,
             api_base=api_base,
