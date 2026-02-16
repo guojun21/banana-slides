@@ -526,6 +526,10 @@ def download_materials_zip():
     if not ids or not isinstance(ids, list):
         return bad_request("material_ids must be a non-empty list")
 
+    MAX_BATCH = 200
+    if len(ids) > MAX_BATCH:
+        return bad_request(f"Too many materials requested (max {MAX_BATCH})")
+
     rows = Material.query.filter(Material.id.in_(ids)).all()
     if not rows:
         return not_found('Materials')

@@ -464,13 +464,13 @@ export const MaterialCenterModal: React.FC<MaterialCenterModalProps> = ({ isOpen
     if (chosen.length === 1) {
       try {
         const blob = await fetch(getImageUrl(chosen[0].url)).then((r) => r.blob());
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = chosen[0].filename || 'material.png';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(a.href);
+        const href = URL.createObjectURL(blob);
+        const link = Object.assign(document.createElement('a'), {
+          href,
+          download: chosen[0].filename || 'material.png',
+        });
+        link.click();
+        URL.revokeObjectURL(href);
         show({ message: t('mc.msg.downloaded'), type: 'success' });
       } catch {
         show({ message: t('mc.msg.downloadErr'), type: 'error' });
