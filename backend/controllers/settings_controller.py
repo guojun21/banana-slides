@@ -381,12 +381,9 @@ def reset_settings():
         from services.ai_providers.lazyllm_env import collect_env_lazyllm_api_keys
         settings.lazyllm_api_keys = collect_env_lazyllm_api_keys()
         # 重置 per-model API 凭证
-        settings.text_api_key = None
-        settings.text_api_base_url = None
-        settings.image_api_key = None
-        settings.image_api_base_url = None
-        settings.image_caption_api_key = None
-        settings.image_caption_api_base_url = None
+        for model_type in ('text', 'image', 'image_caption'):
+            setattr(settings, f'{model_type}_api_key', None)
+            setattr(settings, f'{model_type}_api_base_url', None)
         settings.image_resolution = Config.DEFAULT_RESOLUTION
         settings.image_aspect_ratio = Config.DEFAULT_ASPECT_RATIO
         settings.max_description_workers = Config.MAX_DESCRIPTION_WORKERS
@@ -1013,19 +1010,12 @@ def run_settings_test(test_name: str):
         if current_app.config.get("IMAGE_CAPTION_MODEL_SOURCE"):
             test_settings["image_caption_model_source"] = current_app.config.get("IMAGE_CAPTION_MODEL_SOURCE")
         # Per-model provider sources and credentials
-        if global_settings.text_model_source:
-            test_settings["text_model_source"] = global_settings.text_model_source
-        if global_settings.image_model_source:
-            test_settings["image_model_source"] = global_settings.image_model_source
-        if global_settings.image_caption_model_source:
-            test_settings["image_caption_model_source"] = global_settings.image_caption_model_source
         for model_type in ('text', 'image', 'image_caption'):
-            key_val = getattr(global_settings, f'{model_type}_api_key', None)
-            base_val = getattr(global_settings, f'{model_type}_api_base_url', None)
-            if key_val:
-                test_settings[f'{model_type}_api_key'] = key_val
-            if base_val:
-                test_settings[f'{model_type}_api_base_url'] = base_val
+            for suffix in ('model_source', 'api_key', 'api_base_url'):
+                attr = f'{model_type}_{suffix}'
+                val = getattr(global_settings, attr, None)
+                if val:
+                    test_settings[attr] = val
         if global_settings.mineru_api_base:
             test_settings["mineru_api_base"] = global_settings.mineru_api_base
         if global_settings.mineru_token:
