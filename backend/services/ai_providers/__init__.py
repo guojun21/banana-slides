@@ -153,7 +153,7 @@ def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
         logger.info("Text provider: OpenAI, model=%s", model)
         return OpenAITextProvider(api_key=cfg['api_key'], api_base=cfg['api_base'], model=model)
 
-    if fmt == 'vertex':
+    elif fmt == 'vertex':
         logger.info("Text provider: Vertex AI, model=%s, project=%s", model, cfg['project_id'])
         return GenAITextProvider(
             model=model,
@@ -162,14 +162,15 @@ def get_text_provider(model: str = "gemini-3-flash-preview") -> TextProvider:
             location=cfg['location'],
         )
 
-    if fmt == 'lazyllm':
+    elif fmt == 'lazyllm':
         src = cfg.get('text_source', 'deepseek')
         logger.info("Text provider: LazyLLM, model=%s, source=%s", model, src)
         return LazyLLMTextProvider(source=src, model=model)
 
-    # gemini (default)
-    logger.info("Text provider: Gemini, model=%s", model)
-    return GenAITextProvider(api_key=cfg['api_key'], api_base=cfg['api_base'], model=model)
+    else:
+        # gemini (default)
+        logger.info("Text provider: Gemini, model=%s", model)
+        return GenAITextProvider(api_key=cfg['api_key'], api_base=cfg['api_base'], model=model)
 
 
 def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvider:
@@ -186,7 +187,7 @@ def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvid
         logger.warning("OpenAI format only supports 1K resolution, 4K is not available")
         return OpenAIImageProvider(api_key=cfg['api_key'], api_base=cfg['api_base'], model=model)
 
-    if fmt == 'vertex':
+    elif fmt == 'vertex':
         logger.info("Image provider: Vertex AI, model=%s, project=%s", model, cfg['project_id'])
         return GenAIImageProvider(
             model=model,
@@ -195,11 +196,12 @@ def get_image_provider(model: str = "gemini-3-pro-image-preview") -> ImageProvid
             location=cfg['location'],
         )
 
-    if fmt == 'lazyllm':
+    elif fmt == 'lazyllm':
         src = cfg.get('image_source', 'doubao')
         logger.info("Image provider: LazyLLM, model=%s, source=%s", model, src)
         return LazyLLMImageProvider(source=src, model=model)
 
-    # gemini (default)
-    logger.info("Image provider: Gemini, model=%s", model)
-    return GenAIImageProvider(api_key=cfg['api_key'], api_base=cfg['api_base'], model=model)
+    else:
+        # gemini (default)
+        logger.info("Image provider: Gemini, model=%s", model)
+        return GenAIImageProvider(api_key=cfg['api_key'], api_base=cfg['api_base'], model=model)
