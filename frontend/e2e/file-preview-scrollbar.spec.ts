@@ -115,14 +115,24 @@ test.describe('FilePreviewModal scrollbar fix (mocked)', () => {
     const modal = page.locator('[role="dialog"]').last()
     await expect(modal).toBeVisible({ timeout: 5_000 })
 
-    // KEY ASSERTION: No nested scroll container
-    const nestedScroll = modal.locator('.max-h-\\[70vh\\].overflow-y-auto')
-    await expect(nestedScroll).toHaveCount(0)
-
-    // Verify prose has overflow-x-hidden
+    // KEY ASSERTION: between the dialog and the prose, there should be only ONE
+    // scrollable ancestor (the Modal's own content area), not two (which was the bug).
     const proseDiv = modal.locator('.prose')
     await expect(proseDiv).toBeVisible()
-    const classes = await proseDiv.getAttribute('class')
-    expect(classes).toContain('overflow-x-hidden')
+
+    const scrollableAncestorCount = await proseDiv.evaluate(el => {
+      let count = 0
+      let node = el.parentElement
+      while (node && !node.hasAttribute('role')) {
+        const ov = getComputedStyle(node).overflowY
+        if (ov === 'auto' || ov === 'scroll') count++
+        node = node.parentElement
+      }
+      return count
+    })
+    expect(scrollableAncestorCount).toBe(1)
+
+    // Prose itself should hide horizontal overflow
+    await expect(proseDiv).toHaveCSS('overflow-x', 'hidden')
   })
 })
