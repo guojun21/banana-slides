@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, FileText, Sparkles, Download } from 'lucide-react';
 import { useT } from '@/hooks/useT';
@@ -229,6 +229,13 @@ export const DetailEditor: React.FC = () => {
       await executeRegenerate();
     }
   };
+
+  // Stable ref for handleRegeneratePage to avoid stale closures in memoized DescriptionCard
+  const handleRegeneratePageRef = useRef(handleRegeneratePage);
+  handleRegeneratePageRef.current = handleRegeneratePage;
+  const stableHandleRegeneratePage = useCallback((pageId: string) => {
+    handleRegeneratePageRef.current(pageId);
+  }, []);
 
   const handleAiRefineDescriptions = useCallback(async (requirement: string, previousRequirements: string[]) => {
     if (!currentProject || !projectId) return;
@@ -463,7 +470,7 @@ export const DetailEditor: React.FC = () => {
                     projectId={currentProject.id}
                     showToast={show}
                     onUpdate={(data) => updatePageLocal(pageId, data)}
-                    onRegenerate={() => handleRegeneratePage(pageId)}
+                    onRegenerate={() => stableHandleRegeneratePage(pageId)}
                     isGenerating={pageIsGenerating || (pageId ? !!pageDescriptionGeneratingTasks[pageId] : false)}
                     isAiRefining={isAiRefining}
                   />
