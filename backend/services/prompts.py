@@ -59,7 +59,7 @@ def expand_prompt(template: str, images: Dict[str, Any]) -> List[Union[str, Any]
         # 文本片段（占位符之前的部分）
         text_before = template[last_end:m.start()]
 
-        has_value = value is not None and (not isinstance(value, list) or len(value) > 0)
+        has_value = bool(value)
 
         if has_value:
             # 保留前面的文本
