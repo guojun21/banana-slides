@@ -866,6 +866,10 @@ export const updateSettings = async (
     api_key?: string;
     mineru_token?: string;
     baidu_ocr_api_key?: string;
+    text_api_key?: string;
+    image_api_key?: string;
+    image_caption_api_key?: string;
+    lazyllm_api_keys?: Record<string, string>;
   }
 ): Promise<ApiResponse<Settings>> => {
   const response = await apiClient.put<ApiResponse<Settings>>('/api/settings', data);

@@ -295,12 +295,7 @@ def update_settings():
                 setattr(settings, key_field, data[key_field] or None)
 
             if base_field in data:
-                raw = data[base_field]
-                if raw is None:
-                    setattr(settings, base_field, None)
-                else:
-                    value = str(raw).strip()
-                    setattr(settings, base_field, value if value != "" else None)
+                setattr(settings, base_field, (data[base_field] or "").strip() or None)
 
         if "lazyllm_api_keys" in data:
             keys_data = data["lazyllm_api_keys"]
@@ -635,28 +630,17 @@ def _sync_settings_to_config(settings: Settings):
     # Sync per-model API credentials (for gemini/openai per-model overrides)
     for model_type in ('text', 'image', 'image_caption'):
         prefix = model_type.upper()
-
-        key_val = getattr(settings, f'{model_type}_api_key', None)
-        key_config = f'{prefix}_API_KEY'
-        if key_val:
-            if current_app.config.get(key_config) != key_val:
-                ai_config_changed = True
-            current_app.config[key_config] = key_val
-        else:
-            if key_config in current_app.config:
-                ai_config_changed = True
-            current_app.config.pop(key_config, None)
-
-        base_val = getattr(settings, f'{model_type}_api_base_url', None)
-        base_config = f'{prefix}_API_BASE'
-        if base_val:
-            if current_app.config.get(base_config) != base_val:
-                ai_config_changed = True
-            current_app.config[base_config] = base_val
-        else:
-            if base_config in current_app.config:
-                ai_config_changed = True
-            current_app.config.pop(base_config, None)
+        for suffix, setting_suffix in [('_API_KEY', '_api_key'), ('_API_BASE', '_api_base_url')]:
+            config_key = f'{prefix}{suffix}'
+            val = getattr(settings, f'{model_type}{setting_suffix}', None)
+            if val:
+                if current_app.config.get(config_key) != val:
+                    ai_config_changed = True
+                current_app.config[config_key] = val
+            else:
+                if config_key in current_app.config:
+                    ai_config_changed = True
+                current_app.config.pop(config_key, None)
 
     # Sync LazyLLM vendor API keys to environment variables
     # (lazyllm_env.py reads from os.environ via {SOURCE}_API_KEY)

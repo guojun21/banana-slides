@@ -523,16 +523,16 @@ export const Settings: React.FC = () => {
       if (api_key) payload.api_key = api_key;
       if (mineru_token) payload.mineru_token = mineru_token;
       if (baidu_ocr_api_key) payload.baidu_ocr_api_key = baidu_ocr_api_key;
-      if (text_api_key) (payload as any).text_api_key = text_api_key;
-      if (image_api_key) (payload as any).image_api_key = image_api_key;
-      if (image_caption_api_key) (payload as any).image_caption_api_key = image_caption_api_key;
+      if (text_api_key) payload.text_api_key = text_api_key;
+      if (image_api_key) payload.image_api_key = image_api_key;
+      if (image_caption_api_key) payload.image_caption_api_key = image_caption_api_key;
 
       // Send lazyllm API keys (only non-empty values)
       const nonEmptyKeys = Object.fromEntries(
         Object.entries(lazyllm_api_keys).filter(([, v]) => v)
       );
       if (Object.keys(nonEmptyKeys).length > 0) {
-        (payload as any).lazyllm_api_keys = nonEmptyKeys;
+        payload.lazyllm_api_keys = nonEmptyKeys;
       }
 
       const response = await api.updateSettings(payload);
