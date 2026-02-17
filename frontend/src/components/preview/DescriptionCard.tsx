@@ -44,7 +44,18 @@ export interface DescriptionCardProps {
   isAiRefining?: boolean;
 }
 
-export const DescriptionCard: React.FC<DescriptionCardProps> = ({
+// 从 description_content 提取文本内容（提取到组件外部供 memo 比较器使用）
+const getDescriptionText = (descContent: DescriptionContent | undefined): string => {
+  if (!descContent) return '';
+  if ('text' in descContent) {
+    return descContent.text;
+  } else if ('text_content' in descContent && Array.isArray(descContent.text_content)) {
+    return descContent.text_content.join('\n');
+  }
+  return '';
+};
+
+export const DescriptionCard: React.FC<DescriptionCardProps> = React.memo(({
   page,
   index,
   projectId,
@@ -55,16 +66,6 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
   isAiRefining = false,
 }) => {
   const t = useT(descriptionCardI18n);
-  // 从 description_content 提取文本内容
-  const getDescriptionText = (descContent: DescriptionContent | undefined): string => {
-    if (!descContent) return '';
-    if ('text' in descContent) {
-      return descContent.text;
-    } else if ('text_content' in descContent && Array.isArray(descContent.text_content)) {
-      return descContent.text_content.join('\n');
-    }
-    return '';
-  };
 
   const text = getDescriptionText(page.description_content);
 
@@ -206,4 +207,13 @@ export const DescriptionCard: React.FC<DescriptionCardProps> = ({
       </Modal>
     </>
   );
-};
+}, (prev, next) =>
+  prev.index === next.index &&
+  prev.isGenerating === next.isGenerating &&
+  prev.isAiRefining === next.isAiRefining &&
+  prev.projectId === next.projectId &&
+  prev.page.id === next.page.id &&
+  prev.page.status === next.page.status &&
+  prev.page.part === next.page.part &&
+  getDescriptionText(prev.page.description_content) === getDescriptionText(next.page.description_content)
+);
